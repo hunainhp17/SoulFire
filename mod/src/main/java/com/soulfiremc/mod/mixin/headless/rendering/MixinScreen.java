@@ -17,7 +17,6 @@
  */
 package com.soulfiremc.mod.mixin.headless.rendering;
 
-import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -27,8 +26,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Screen.class)
 public class MixinScreen {
   @Inject(method = "extractTransparentBackground", at = @At("HEAD"), cancellable = true)
-  private void renderTransparentBackgroundHook(GuiGraphicsExtractor guiGraphics, CallbackInfo ci) {
+  private void extractTransparentBackgroundHook(CallbackInfo ci) {
     ci.cancel();
   }
 
+  @Inject(method = "extractBackground", at = @At("HEAD"), cancellable = true)
+  private void extractBackgroundHook(CallbackInfo ci) {
+    ci.cancel();
+  }
+
+  @Inject(method = "extractPanorama", at = @At("HEAD"), cancellable = true)
+  private void extractPanoramaHook(CallbackInfo ci) {
+    ci.cancel();
+  }
 }
