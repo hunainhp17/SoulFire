@@ -528,7 +528,11 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.delay=5"
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge.delay=5"
       - "--certificatesresolvers.myresolver.acme.email=${EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
       - "--certificatesresolvers.myresolver.acme.certificatesduration=160"
@@ -939,6 +943,77 @@ is_installed() {
   [[ -f "$COMPOSE_FILE" ]]
 }
 
+expected_tls_identifier() {
+  case "$SSL_MODE" in
+    traefik)    echo "$DOMAIN" ;;
+    traefik-ip) echo "$PUBLIC_IP" ;;
+    *)          return 1 ;;
+  esac
+}
+
+traefik_cert_issued() {
+  local identifier
+  identifier=$(expected_tls_identifier) || return 1
+
+  docker compose -f "$COMPOSE_FILE" exec -T traefik sh -lc \
+    "test -s /letsencrypt/acme.json && grep -Fq \"$identifier\" /letsencrypt/acme.json" \
+    >/dev/null 2>&1
+}
+
+traefik_default_cert_served() {
+  local identifier cert_details
+  identifier=$(expected_tls_identifier) || return 1
+
+  if ! command -v openssl >/dev/null 2>&1; then
+    return 1
+  fi
+
+  cert_details=$(
+    printf '' | openssl s_client -connect 127.0.0.1:443 -servername "$identifier" 2>/dev/null \
+      | openssl x509 -noout -subject -issuer 2>/dev/null
+  ) || return 1
+
+  [[ "$cert_details" == *"TRAEFIK DEFAULT CERT"* ]]
+}
+
+wait_for_tls_certificate() {
+  local identifier attempts=0 max_attempts=120
+  identifier=$(expected_tls_identifier) || return 0
+
+  while true; do
+    if traefik_cert_issued && ! traefik_default_cert_served; then
+      echo ""
+      msg_ok "Traefik obtained a trusted certificate for ${identifier}"
+      return 0
+    fi
+
+    if [ "$attempts" -ge "$max_attempts" ]; then
+      echo ""
+      msg_warn "Traefik did not obtain a usable certificate for ${identifier} within ${max_attempts}s"
+      return 1
+    fi
+
+    attempts=$((attempts + 1))
+    echo -ne "\r\e[34m[INFO]\e[0m Waiting for Traefik certificate... (${attempts}s/${max_attempts}s) [identifier: ${identifier}]"
+    sleep 1
+  done
+}
+
+verify_tls_access_ready() {
+  case "$SSL_MODE" in
+    traefik|traefik-ip)
+      msg_info "Verifying Traefik certificate issuance..."
+      if ! wait_for_tls_certificate; then
+        tui_msgbox "Certificate Not Ready" \
+          "Traefik did not obtain a usable certificate for $(expected_tls_identifier).\n\nThe installer will stop here because browsers would otherwise see Traefik's default self-signed certificate.\n\nUseful commands:\n  docker compose -f $COMPOSE_FILE logs traefik\n  docker compose -f $COMPOSE_FILE exec -T traefik cat /letsencrypt/acme.json"
+        return 1
+      fi
+      ;;
+  esac
+
+  return 0
+}
+
 wait_for_healthy() {
   local attempts=0
   local max_attempts=60
@@ -1029,6 +1104,7 @@ do_fresh_install() {
   if ! wait_for_healthy; then
     show_startup_troubleshooting
   fi
+  verify_tls_access_ready || exit 1
 
   local access_url
   access_url=$(selected_access_url "$SSL_MODE")
@@ -1075,6 +1151,7 @@ do_update() {
   if ! wait_for_healthy; then
     show_startup_troubleshooting
   fi
+  verify_tls_access_ready || return 1
   msg_ok "SoulFire updated successfully"
 }
 
@@ -1090,6 +1167,7 @@ do_reconfigure() {
   if ! wait_for_healthy; then
     show_startup_troubleshooting
   fi
+  verify_tls_access_ready || return 1
   msg_ok "SoulFire reconfigured successfully"
 }
 
