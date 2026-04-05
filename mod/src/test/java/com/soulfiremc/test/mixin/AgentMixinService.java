@@ -184,6 +184,16 @@ public class AgentMixinService extends MixinServiceAbstract implements IClassPro
   }
 
   @Override
+  public IFeatureValidator getFeatureValidator() {
+    return IFeatureValidator.ALLOW_ALL;
+  }
+
+  @Override
+  public IAdviceProvider getAdviceProvider() {
+    return IAdviceProvider.GENERIC;
+  }
+
+  @Override
   public Collection<String> getPlatformAgents() {
     return Collections.singletonList(MixinPlatformAgentDefault.class.getName());
   }
