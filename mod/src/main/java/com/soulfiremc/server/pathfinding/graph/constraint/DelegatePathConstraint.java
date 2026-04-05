@@ -20,6 +20,7 @@ package com.soulfiremc.server.pathfinding.graph.constraint;
 import com.soulfiremc.server.pathfinding.SFVec3i;
 import com.soulfiremc.server.pathfinding.graph.DiagonalCollisionCalculator;
 import com.soulfiremc.server.pathfinding.graph.GraphInstructions;
+import com.soulfiremc.server.settings.property.MinMaxProperty;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -97,6 +98,16 @@ public interface DelegatePathConstraint extends PathConstraint {
   @Override
   default boolean disablePruning() {
     return delegate().disablePruning();
+  }
+
+  @Override
+  default MinMaxProperty.DataLayout yRotJitter() {
+    return delegate().yRotJitter();
+  }
+
+  @Override
+  default MinMaxProperty.DataLayout xRotJitter() {
+    return delegate().xRotJitter();
   }
 
   PathConstraint delegate();

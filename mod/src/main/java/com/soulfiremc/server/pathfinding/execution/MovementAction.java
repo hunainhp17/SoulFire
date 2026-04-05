@@ -20,6 +20,7 @@ package com.soulfiremc.server.pathfinding.execution;
 import com.google.common.math.DoubleMath;
 import com.soulfiremc.server.bot.BotConnection;
 import com.soulfiremc.server.pathfinding.SFVec3i;
+import com.soulfiremc.server.pathfinding.graph.constraint.PathConstraint;
 import com.soulfiremc.server.util.MathHelper;
 import com.soulfiremc.server.util.VectorHelper;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,8 @@ import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 @Slf4j
 @RequiredArgsConstructor
 public final class MovementAction implements WorldAction {
@@ -36,6 +39,7 @@ public final class MovementAction implements WorldAction {
   private final SFVec3i blockPosition;
   // Corner jumps normally require you to stand closer to the block to jump
   private final boolean walkFewTicksNoJump;
+  private final PathConstraint pathConstraint;
   private boolean didLook;
   private boolean lockYRot;
   private boolean wasStill;
@@ -88,7 +92,21 @@ public final class MovementAction implements WorldAction {
 
     var previousYRot = clientEntity.getYRot();
     clientEntity.lookAt(EntityAnchorArgument.Anchor.EYES, targetMiddleBlock);
-    clientEntity.setXRot(0);
+
+    var xRot = 0f;
+    var yRot = 0f;
+
+    if (pathConstraint.yRotJitter().min() < pathConstraint.yRotJitter().max()) {
+      yRot =
+        ThreadLocalRandom.current().nextFloat((float) pathConstraint.yRotJitter().min(), (float) pathConstraint.yRotJitter().max());
+    }
+    if (pathConstraint.xRotJitter().min() < pathConstraint.xRotJitter().max()) {
+      xRot =
+        ThreadLocalRandom.current().nextFloat((float) pathConstraint.xRotJitter().min(), (float) pathConstraint.xRotJitter().max());
+    }
+
+    clientEntity.setYRot(MathHelper.wrapDegrees(clientEntity.getYRot() + yRot));
+    clientEntity.setXRot(clientEntity.getXRot() + xRot);
     var newYRot = clientEntity.getYRot();
 
     var yRotDifference = Math.abs(MathHelper.wrapDegrees(newYRot - previousYRot));

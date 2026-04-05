@@ -19,10 +19,7 @@ package com.soulfiremc.server.settings.instance;
 
 import com.soulfiremc.server.settings.lib.SettingsObject;
 import com.soulfiremc.server.settings.lib.SettingsSource;
-import com.soulfiremc.server.settings.property.BooleanProperty;
-import com.soulfiremc.server.settings.property.ImmutableBooleanProperty;
-import com.soulfiremc.server.settings.property.ImmutableIntProperty;
-import com.soulfiremc.server.settings.property.IntProperty;
+import com.soulfiremc.server.settings.property.*;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -108,5 +105,41 @@ public final class PathfindingSettings implements SettingsObject {
       .uiName("Disable Pruning")
       .description("Disable periodic pruning of the pathfinding search space (may use more memory)")
       .defaultValue(false)
+      .build();
+  public static final MinMaxProperty<SettingsSource.Bot> Y_ROT_JITTER =
+    ImmutableMinMaxProperty.<SettingsSource.Bot>builder()
+      .sourceType(SettingsSource.Bot.INSTANCE)
+      .namespace(NAMESPACE)
+      .key("y-rot-jitter")
+      .minValue(-180)
+      .maxValue(180)
+      .minEntry(ImmutableMinMaxPropertyEntry.builder()
+        .uiName("Y Rot Jitter Minimum")
+        .description("Minimum random horizontal angle offset")
+        .defaultValue(-25)
+        .build())
+      .maxEntry(ImmutableMinMaxPropertyEntry.builder()
+        .uiName("Y Rot Jitter Maximum")
+        .description("Maximum random horizontal angle offset")
+        .defaultValue(25)
+        .build())
+      .build();
+  public static final MinMaxProperty<SettingsSource.Bot> X_ROT_JITTER =
+    ImmutableMinMaxProperty.<SettingsSource.Bot>builder()
+      .sourceType(SettingsSource.Bot.INSTANCE)
+      .namespace(NAMESPACE)
+      .key("x-rot-jitter")
+      .minValue(-90)
+      .maxValue(90)
+      .minEntry(ImmutableMinMaxPropertyEntry.builder()
+        .uiName("X Rot Jitter Minimum")
+        .description("Minimum random vertical angle offset")
+        .defaultValue(-4)
+        .build())
+      .maxEntry(ImmutableMinMaxPropertyEntry.builder()
+        .uiName("X Rot Jitter Maximum")
+        .description("Maximum random vertical angle offset")
+        .defaultValue(4)
+        .build())
       .build();
 }
