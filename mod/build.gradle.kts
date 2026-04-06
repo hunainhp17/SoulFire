@@ -19,10 +19,10 @@ dependencies {
 
   compileOnly(projects.shared)
 
-  minecraft("com.mojang:minecraft:26.1")
+  minecraft("com.mojang:minecraft:26.1.1")
   implementation("net.fabricmc:fabric-loader:0.18.6")
 
-  val viaFabricPlusNotation = "com.viaversion:viafabricplus:4.5.0"
+  val viaFabricPlusNotation = "com.viaversion:viafabricplus:4.5.1"
   implementation(viaFabricPlusNotation) {
     exclude("org.lz4")
   }
