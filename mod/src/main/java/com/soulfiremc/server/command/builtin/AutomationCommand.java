@@ -19,10 +19,13 @@ package com.soulfiremc.server.command.builtin;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.soulfiremc.server.automation.AutomationRequirements;
+import com.soulfiremc.server.settings.instance.AutomationSettings;
+import com.soulfiremc.server.util.structs.GsonInstance;
 import com.soulfiremc.server.command.CommandSourceStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
@@ -41,8 +44,11 @@ public final class AutomationCommand {
       .executes(help(
         "Starts the native automation progression controller",
         c -> forEveryBot(c, bot -> {
-          bot.automation().startBeatMinecraft();
-          c.getSource().source().sendInfo("Started automation beat mode for " + bot.accountName());
+          if (bot.automation().startBeatMinecraft()) {
+            c.getSource().source().sendInfo("Started automation beat mode for " + bot.accountName());
+          } else {
+            c.getSource().source().sendWarn("Automation is disabled for " + bot.accountName());
+          }
           return Command.SINGLE_SUCCESS;
         }))));
     root.then(literal("get")
@@ -55,11 +61,50 @@ public final class AutomationCommand {
               var target = StringArgumentType.getString(c, "target");
               var count = IntegerArgumentType.getInteger(c, "count");
               return forEveryBot(c, bot -> {
-                bot.automation().startAcquire(target, count);
-                c.getSource().source().sendInfo("Started automation get %s x%d for %s".formatted(target, count, bot.accountName()));
+                if (bot.automation().startAcquire(target, count)) {
+                  c.getSource().source().sendInfo("Started automation get %s x%d for %s".formatted(target, count, bot.accountName()));
+                } else {
+                  c.getSource().source().sendWarn("Automation is disabled for " + bot.accountName());
+                }
                 return Command.SINGLE_SUCCESS;
               });
             })))));
+    root.then(literal("pause")
+      .executes(help(
+        "Pauses automation for selected bots without clearing their current goal",
+        c -> forEveryBot(c, bot -> {
+          if (bot.automation().pause()) {
+            c.getSource().source().sendInfo("Paused automation for " + bot.accountName());
+          } else {
+            c.getSource().source().sendWarn("Automation was not running for " + bot.accountName());
+          }
+          return Command.SINGLE_SUCCESS;
+        }))));
+    root.then(literal("resume")
+      .executes(help(
+        "Resumes automation for selected paused bots",
+        c -> forEveryBot(c, bot -> {
+          if (bot.automation().resume()) {
+            c.getSource().source().sendInfo("Resumed automation for " + bot.accountName());
+          } else {
+            c.getSource().source().sendWarn("Automation was not paused for " + bot.accountName());
+          }
+          return Command.SINGLE_SUCCESS;
+        }))));
+    root.then(literal("collaboration")
+      .then(argument("enabled", BoolArgumentType.bool())
+        .executes(help(
+          "Toggles shared team collaboration for visible instances",
+          c -> {
+            var enabled = BoolArgumentType.getBool(c, "enabled");
+            return forEveryInstance(c, instance -> {
+              instance.updateInstanceSetting(AutomationSettings.TEAM_COLLABORATION, GsonInstance.GSON.toJsonTree(enabled));
+              c.getSource().source().sendInfo("%s: team collaboration %s".formatted(
+                instance.friendlyNameCache().get(),
+                enabled ? "enabled" : "disabled"));
+              return Command.SINGLE_SUCCESS;
+            });
+          }))));
     root.then(literal("status")
       .executes(help(
         "Shows the current automation status for selected bots",
@@ -80,7 +125,11 @@ public final class AutomationCommand {
             }
 
             c.getSource().source().sendInfo(instance.friendlyNameCache().get()
-              + ": objective=%s bots=%d blaze=%d/%d pearls=%d/%d eyes=%d/%d arrows=%d/%d beds=%d/%d".formatted(
+              + ": collaboration=%s rolePolicy=%s sharedEndEntry=%s maxEndBots=%d objective=%s bots=%d blaze=%d/%d pearls=%d/%d eyes=%d/%d arrows=%d/%d beds=%d/%d".formatted(
+              summary.collaborationEnabled() ? "on" : "off",
+              summary.rolePolicy().name().toLowerCase(),
+              summary.sharedEndEntry() ? "on" : "off",
+              summary.maxEndBots(),
               summary.objective().name().toLowerCase(),
               summary.activeBots(),
               summary.blazeRods(),

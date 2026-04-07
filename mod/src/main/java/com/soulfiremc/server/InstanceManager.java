@@ -37,6 +37,7 @@ import com.soulfiremc.server.database.generated.Tables;
 import com.soulfiremc.server.metrics.InstanceMetricsCollector;
 import com.soulfiremc.server.settings.instance.*;
 import com.soulfiremc.server.settings.lib.*;
+import com.soulfiremc.server.settings.property.Property;
 import com.soulfiremc.server.user.SoulFireUser;
 import com.soulfiremc.server.util.MathHelper;
 import com.soulfiremc.server.util.SFHelpers;
@@ -126,6 +127,7 @@ public final class InstanceManager {
         .addInternalPage(AccountSettings.class, "account", "Account Settings", "users")
         .addInternalPage(ProxySettings.class, "proxy", "Proxy Settings", "waypoints")
         .addInternalPage(AISettings.class, "ai", "AI Settings", "sparkles")
+        .addInternalPage(AutomationSettings.class, "automation", "Automation Settings", "bot-message-square")
         .addInternalPage(PathfindingSettings.class, "pathfinding", "Pathfinding Settings", "route");
 
       SoulFireAPI.postEvent(new InstanceSettingsRegistryInitEvent(this, registry));
@@ -169,6 +171,32 @@ public final class InstanceManager {
     for (var bot : botConnections.values()) {
       bot.invalidateSettingsCache();
     }
+  }
+
+  public void updateInstanceSetting(Property<SettingsSource.Instance> property, JsonElement value) {
+    dsl.transaction(cfg -> {
+      var ctx = DSL.using(cfg);
+      var record = ctx.selectFrom(Tables.INSTANCES).where(Tables.INSTANCES.ID.eq(id.toString())).fetchOne();
+      if (record == null) {
+        throw new IllegalStateException("Instance not found");
+      }
+
+      var currentSettings = InstanceSettingsImpl.Stem.deserialize(GsonInstance.GSON.fromJson(record.getSettings(), JsonElement.class));
+      var updatedSettings = SettingsSource.Stem.withUpdatedEntry(
+        currentSettings.settings(),
+        property.namespace(),
+        property.key(),
+        value);
+      var updatedStem = currentSettings.withSettings(updatedSettings);
+
+      ctx.update(Tables.INSTANCES)
+        .set(Tables.INSTANCES.SETTINGS, GsonInstance.GSON.toJson(updatedStem.serializeToTree()))
+        .set(Tables.INSTANCES.UPDATED_AT, LocalDateTime.now(ZoneOffset.UTC))
+        .where(Tables.INSTANCES.ID.eq(id.toString()))
+        .execute();
+    });
+
+    invalidateSettingsCache();
   }
 
   private String fetchFriendlyName() {

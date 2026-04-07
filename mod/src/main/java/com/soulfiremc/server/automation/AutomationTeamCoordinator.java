@@ -19,6 +19,7 @@ package com.soulfiremc.server.automation;
 
 import com.soulfiremc.server.InstanceManager;
 import com.soulfiremc.server.bot.BotConnection;
+import com.soulfiremc.server.settings.instance.AutomationSettings;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
@@ -317,6 +318,9 @@ public final class AutomationTeamCoordinator {
 
   public synchronized TeamRole roleFor(BotConnection bot) {
     prune(System.currentTimeMillis());
+    if (independentMode()) {
+      return TeamRole.LEAD;
+    }
     rebalanceRoles();
     return roleAssignments.getOrDefault(bot.accountProfileId(), TeamRole.END_SUPPORT);
   }
@@ -327,11 +331,31 @@ public final class AutomationTeamCoordinator {
     return objective;
   }
 
+  public synchronized TeamObjective objectiveFor(BotConnection bot) {
+    prune(System.currentTimeMillis());
+    if (!independentMode()) {
+      updateObjective();
+      return objective;
+    }
+
+    return objectiveForBotId(bot.accountProfileId());
+  }
+
   public synchronized int sharedCount(String requirementKey) {
     prune(System.currentTimeMillis());
     return sharedInventory.values().stream()
       .mapToInt(snapshot -> snapshot.getOrDefault(requirementKey, 0))
       .sum();
+  }
+
+  public synchronized int countFor(BotConnection bot, String requirementKey) {
+    prune(System.currentTimeMillis());
+    if (!independentMode()) {
+      return sharedCount(requirementKey);
+    }
+
+    return sharedInventory.getOrDefault(bot.accountProfileId(), Map.of())
+      .getOrDefault(requirementKey, 0);
   }
 
   public synchronized int teamTarget(String requirementKey) {
@@ -353,17 +377,34 @@ public final class AutomationTeamCoordinator {
     };
   }
 
+  public synchronized int targetFor(BotConnection bot, String requirementKey) {
+    if (!independentMode()) {
+      return teamTarget(requirementKey);
+    }
+
+    return soloTarget(requirementKey);
+  }
+
   public synchronized boolean shouldTravelToNether(BotConnection bot) {
+    var objective = objectiveFor(bot);
+    if (independentMode()) {
+      return objective.ordinal() <= TeamObjective.NETHER_PROGRESS.ordinal();
+    }
+
     return switch (roleFor(bot)) {
-      case LEAD, PORTAL_ENGINEER, NETHER_RUNNER -> objective().ordinal() <= TeamObjective.NETHER_PROGRESS.ordinal();
-      case STRONGHOLD_SCOUT -> objective() == TeamObjective.NETHER_PROGRESS && sharedCount("item:minecraft:ender_eye") < teamTarget("item:minecraft:ender_eye");
+      case LEAD, PORTAL_ENGINEER, NETHER_RUNNER -> objective.ordinal() <= TeamObjective.NETHER_PROGRESS.ordinal();
+      case STRONGHOLD_SCOUT -> objective == TeamObjective.NETHER_PROGRESS && countFor(bot, "item:minecraft:ender_eye") < targetFor(bot, "item:minecraft:ender_eye");
       case END_SUPPORT -> false;
     };
   }
 
   public synchronized boolean shouldSearchStronghold(BotConnection bot) {
+    if (independentMode()) {
+      return objectiveFor(bot).ordinal() >= TeamObjective.STRONGHOLD_HUNT.ordinal();
+    }
+
     var role = roleFor(bot);
-    if (objective().ordinal() < TeamObjective.STRONGHOLD_HUNT.ordinal()) {
+    if (objectiveFor(bot).ordinal() < TeamObjective.STRONGHOLD_HUNT.ordinal()) {
       return false;
     }
 
@@ -371,9 +412,32 @@ public final class AutomationTeamCoordinator {
   }
 
   public synchronized boolean shouldEnterEnd(BotConnection bot) {
+    if (objectiveFor(bot).ordinal() < TeamObjective.END_ASSAULT.ordinal()) {
+      return false;
+    }
+
+    if (independentMode()) {
+      return true;
+    }
+
     var role = roleFor(bot);
-    return objective().ordinal() >= TeamObjective.END_ASSAULT.ordinal()
-      && role != TeamRole.PORTAL_ENGINEER;
+    if (role == TeamRole.PORTAL_ENGINEER) {
+      return false;
+    }
+
+    if (!instanceManager.settingsSource().get(AutomationSettings.SHARED_END_ENTRY)) {
+      return true;
+    }
+
+    var snapshot = botSnapshots.get(bot.accountProfileId());
+    if (snapshot != null && snapshot.dimension == Level.END) {
+      return true;
+    }
+
+    var currentEndBots = botSnapshots.values().stream()
+      .filter(current -> current.alive && current.dimension == Level.END)
+      .count();
+    return currentEndBots < instanceManager.settingsSource().get(AutomationSettings.MAX_END_BOTS);
   }
 
   public synchronized void noteTimeout(BotConnection bot, @Nullable String actionDescription) {
@@ -413,8 +477,8 @@ public final class AutomationTeamCoordinator {
         snapshot.accountName(),
         snapshot.dimension,
         snapshot.position,
-        roleAssignments.getOrDefault(snapshot.botId(), TeamRole.END_SUPPORT),
-        objective,
+        roleForBotId(snapshot.botId()),
+        objectiveForBotId(snapshot.botId()),
         snapshot.status,
         snapshot.phase,
         snapshot.deathCount,
@@ -435,6 +499,10 @@ public final class AutomationTeamCoordinator {
     }
 
     return new TeamSummary(
+      collaborationEnabled(),
+      instanceManager.settingsSource().get(AutomationSettings.ROLE_POLICY, AutomationSettings.RolePolicy.class),
+      instanceManager.settingsSource().get(AutomationSettings.SHARED_END_ENTRY),
+      instanceManager.settingsSource().get(AutomationSettings.MAX_END_BOTS),
       objective,
       botSnapshots.size(),
       counts.getOrDefault("item:minecraft:blaze_rod", 0),
@@ -567,31 +635,79 @@ public final class AutomationTeamCoordinator {
   }
 
   private void updateObjective() {
+    objective = computeObjective(Map.of(), false);
+  }
+
+  private TeamObjective objectiveForBotId(UUID botId) {
+    if (!independentMode()) {
+      return objective;
+    }
+
+    return computeObjective(sharedInventory.getOrDefault(botId, Map.of()), true);
+  }
+
+  private TeamObjective computeObjective(Map<String, Integer> inventoryCounts, boolean useSoloTargets) {
     if (hasCompletedRun()) {
-      objective = TeamObjective.COMPLETE;
-      return;
+      return TeamObjective.COMPLETE;
     }
 
     if (sharedBlocks.getOrDefault(Level.END, Map.of()).values().stream()
       .anyMatch(block -> block.state().getBlock() == Blocks.DRAGON_EGG || block.state().getBlock() == Blocks.END_PORTAL)) {
-      objective = TeamObjective.END_ASSAULT;
-      return;
+      return TeamObjective.END_ASSAULT;
     }
 
     if (sharedBlocks.getOrDefault(Level.OVERWORLD, Map.of()).values().stream()
       .anyMatch(block -> block.state().getBlock() == Blocks.END_PORTAL_FRAME || block.state().getBlock() == Blocks.END_PORTAL)
-      || sharedCount("item:minecraft:ender_eye") >= teamTarget("item:minecraft:ender_eye")) {
-      objective = TeamObjective.STRONGHOLD_HUNT;
-      return;
+      || inventoryCounts.getOrDefault("item:minecraft:ender_eye", 0) >= (useSoloTargets ? soloTarget("item:minecraft:ender_eye") : teamTarget("item:minecraft:ender_eye"))) {
+      return TeamObjective.STRONGHOLD_HUNT;
     }
 
-    if (sharedCount("item:minecraft:blaze_rod") >= teamTarget("item:minecraft:blaze_rod")
+    if (inventoryCounts.getOrDefault("item:minecraft:blaze_rod", 0) >= (useSoloTargets ? soloTarget("item:minecraft:blaze_rod") : teamTarget("item:minecraft:blaze_rod"))
+      && inventoryCounts.getOrDefault("item:minecraft:ender_pearl", 0) >= (useSoloTargets ? soloTarget("item:minecraft:ender_pearl") : teamTarget("item:minecraft:ender_pearl"))) {
+      return TeamObjective.STRONGHOLD_HUNT;
+    }
+
+    if (!useSoloTargets && sharedCount("item:minecraft:blaze_rod") >= teamTarget("item:minecraft:blaze_rod")
       && sharedCount("item:minecraft:ender_pearl") >= teamTarget("item:minecraft:ender_pearl")) {
-      objective = TeamObjective.STRONGHOLD_HUNT;
-      return;
+      return TeamObjective.STRONGHOLD_HUNT;
     }
 
-    objective = TeamObjective.NETHER_PROGRESS;
+    return TeamObjective.NETHER_PROGRESS;
+  }
+
+  private TeamRole roleForBotId(UUID botId) {
+    if (independentMode()) {
+      return TeamRole.LEAD;
+    }
+
+    return roleAssignments.getOrDefault(botId, TeamRole.END_SUPPORT);
+  }
+
+  private boolean collaborationEnabled() {
+    return instanceManager.settingsSource().get(AutomationSettings.TEAM_COLLABORATION);
+  }
+
+  private boolean independentMode() {
+    return !collaborationEnabled()
+      || instanceManager.settingsSource().get(AutomationSettings.ROLE_POLICY, AutomationSettings.RolePolicy.class) == AutomationSettings.RolePolicy.INDEPENDENT;
+  }
+
+  private static int soloTarget(String requirementKey) {
+    return switch (requirementKey) {
+      case AutomationRequirements.FOOD -> 12;
+      case "item:minecraft:blaze_rod" -> 6;
+      case "item:minecraft:ender_pearl" -> 12;
+      case "item:minecraft:ender_eye" -> 12;
+      case "item:minecraft:bow" -> 1;
+      case "item:minecraft:arrow" -> 24;
+      case "item:minecraft:shield" -> 1;
+      case "item:minecraft:water_bucket" -> 1;
+      case "item:minecraft:lava_bucket" -> 1;
+      case "item:minecraft:flint_and_steel" -> 1;
+      case "item:minecraft:obsidian" -> 10;
+      case "item:minecraft:bed" -> 1;
+      default -> 1;
+    };
   }
 
   private boolean hasCompletedRun() {
@@ -660,7 +776,11 @@ public final class AutomationTeamCoordinator {
                           @Nullable String lastRecoveryReason) {
   }
 
-  public record TeamSummary(TeamObjective objective,
+  public record TeamSummary(boolean collaborationEnabled,
+                            AutomationSettings.RolePolicy rolePolicy,
+                            boolean sharedEndEntry,
+                            int maxEndBots,
+                            TeamObjective objective,
                             int activeBots,
                             int blazeRods,
                             int targetBlazeRods,

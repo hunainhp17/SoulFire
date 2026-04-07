@@ -18,6 +18,7 @@
 package com.soulfiremc.server.automation;
 
 import com.soulfiremc.server.bot.BotConnection;
+import com.soulfiremc.server.settings.instance.AutomationSettings;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.EntityType;
@@ -49,8 +50,6 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 public final class AutomationWorldMemory {
-  private static final int BLOCK_SCAN_RADIUS = 48;
-  private static final int BLOCK_SCAN_INTERVAL_TICKS = 20;
   private static final long MEMORY_EXPIRY_TICKS = 20L * 60L * 5L;
   private static final long UNREACHABLE_EXPIRY_TICKS = 20L * 30L;
 
@@ -89,13 +88,15 @@ public final class AutomationWorldMemory {
       }
     }
 
-    if (ticks - lastBlockScan >= BLOCK_SCAN_INTERVAL_TICKS) {
+    var blockScanRadius = bot.settingsSource().get(AutomationSettings.MEMORY_SCAN_RADIUS);
+    var blockScanInterval = bot.settingsSource().get(AutomationSettings.MEMORY_SCAN_INTERVAL_TICKS);
+    if (ticks - lastBlockScan >= blockScanInterval) {
       lastBlockScan = ticks;
       var origin = player.blockPosition();
-      var minY = Math.max(level.getMinY(), origin.getY() - BLOCK_SCAN_RADIUS);
-      var maxY = Math.min(level.getMaxY(), origin.getY() + BLOCK_SCAN_RADIUS);
-      for (int dx = -BLOCK_SCAN_RADIUS; dx <= BLOCK_SCAN_RADIUS; dx++) {
-        for (int dz = -BLOCK_SCAN_RADIUS; dz <= BLOCK_SCAN_RADIUS; dz++) {
+      var minY = Math.max(level.getMinY(), origin.getY() - blockScanRadius);
+      var maxY = Math.min(level.getMaxY(), origin.getY() + blockScanRadius);
+      for (int dx = -blockScanRadius; dx <= blockScanRadius; dx++) {
+        for (int dz = -blockScanRadius; dz <= blockScanRadius; dz++) {
           for (int y = minY; y <= maxY; y++) {
             var pos = new BlockPos(origin.getX() + dx, y, origin.getZ() + dz);
             var state = level.getBlockState(pos);

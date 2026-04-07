@@ -33,6 +33,7 @@ import com.soulfiremc.server.pathfinding.goals.XZGoal;
 import com.soulfiremc.server.pathfinding.graph.BlockFace;
 import com.soulfiremc.server.pathfinding.graph.constraint.PathConstraintImpl;
 import com.soulfiremc.server.plugins.KillAura;
+import com.soulfiremc.server.settings.instance.AutomationSettings;
 import lombok.extern.slf4j.Slf4j;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
@@ -103,8 +104,11 @@ public final class AutomationController {
   private long currentActionMovedTick;
   private @Nullable Vec3 lastEyeDirectionTarget;
   private @Nullable Vec3 currentActionLastPos;
+  private @Nullable GoalMode pausedMode;
+  private @Nullable BeatPhase pausedBeatPhase;
   private String status = "idle";
   private boolean awaitingRespawn;
+  private boolean paused;
   private int consecutiveFailures;
   private int knownDeaths;
 
@@ -121,7 +125,18 @@ public final class AutomationController {
       return;
     }
 
-    team().observe(bot, worldMemory, status, mode == GoalMode.BEAT ? beatPhase.name() : null, inventorySnapshot());
+    if (!bot.settingsSource().get(AutomationSettings.ENABLED)) {
+      disableAutomation();
+      team().observe(bot, worldMemory, status, null, inventorySnapshot());
+      return;
+    }
+
+    team().observe(bot, worldMemory, status, effectivePhaseName(), inventorySnapshot());
+
+    if (paused) {
+      status = "automation paused";
+      return;
+    }
 
     if (!player.isAlive()) {
       awaitingRespawn = true;
@@ -218,19 +233,60 @@ public final class AutomationController {
     }
   }
 
-  public void startAcquire(String requirement, int count) {
+  public boolean startAcquire(String requirement, int count) {
+    if (!bot.settingsSource().get(AutomationSettings.ENABLED)) {
+      status = "automation disabled";
+      return false;
+    }
+
     stop();
     mode = GoalMode.ACQUIRE;
     pushRequirement(new RequirementGoal(AutomationRequirements.normalize(requirement), count, "requested"));
     status = "acquiring " + requirement;
+    return true;
   }
 
-  public void startBeatMinecraft() {
+  public boolean startBeatMinecraft() {
+    if (!bot.settingsSource().get(AutomationSettings.ENABLED)) {
+      status = "automation disabled";
+      return false;
+    }
+
     stop();
     mode = GoalMode.BEAT;
     beatPhase = BeatPhase.PREPARE_OVERWORLD;
     knownDeaths = team().deathCount(bot);
     status = "preparing overworld";
+    return true;
+  }
+
+  public boolean pause() {
+    if (paused || mode == GoalMode.IDLE) {
+      return false;
+    }
+
+    paused = true;
+    pausedMode = mode;
+    pausedBeatPhase = beatPhase;
+    bot.botControl().stopAll();
+    clearCurrentAction();
+    status = "automation paused";
+    return true;
+  }
+
+  public boolean resume() {
+    if (!paused || pausedMode == null) {
+      return false;
+    }
+
+    paused = false;
+    mode = pausedMode;
+    beatPhase = pausedBeatPhase == null ? beatPhase : pausedBeatPhase;
+    pausedMode = null;
+    pausedBeatPhase = null;
+    status = mode == GoalMode.BEAT ? "resumed beat automation" : "resumed automation";
+    noteProgress();
+    return true;
   }
 
   public void stop() {
@@ -239,6 +295,9 @@ public final class AutomationController {
     lastEyeDirectionTarget = null;
     mode = GoalMode.IDLE;
     beatPhase = BeatPhase.PREPARE_OVERWORLD;
+    paused = false;
+    pausedMode = null;
+    pausedBeatPhase = null;
     consecutiveFailures = 0;
     awaitingRespawn = false;
     knownDeaths = team().deathCount(bot);
@@ -256,6 +315,9 @@ public final class AutomationController {
     }
     if (mode == GoalMode.BEAT) {
       parts.add("phase=" + beatPhase.name().toLowerCase());
+    }
+    if (paused) {
+      parts.add("paused=true");
     }
     if (currentAction != null) {
       parts.add("action=" + currentAction.description());
@@ -281,15 +343,17 @@ public final class AutomationController {
       return false;
     }
 
+    var retreatHealthThreshold = bot.settingsSource().get(AutomationSettings.RETREAT_HEALTH_THRESHOLD);
+    var retreatFoodThreshold = bot.settingsSource().get(AutomationSettings.RETREAT_FOOD_THRESHOLD);
     var hostile = worldMemory.findNearestHostile(bot);
     if (hostile.isPresent()
       && hostile.get().position().distanceTo(player.position()) < 8
-      && player.getHealth() <= 8) {
+      && player.getHealth() <= retreatHealthThreshold) {
       interruptFor(new FleeAction(hostile.get().pos()));
       return true;
     }
 
-    if (player.getFoodData().getFoodLevel() <= 12 && AutomationInventory.isFoodInInventory(bot)) {
+    if (player.getFoodData().getFoodLevel() <= retreatFoodThreshold && AutomationInventory.isFoodInInventory(bot)) {
       interruptFor(new EatAction());
       return true;
     }
@@ -371,9 +435,31 @@ public final class AutomationController {
     status = "recovering from stalled action";
   }
 
+  private void disableAutomation() {
+    requirements.clear();
+    clearCurrentAction();
+    lastEyeDirectionTarget = null;
+    paused = false;
+    pausedMode = null;
+    pausedBeatPhase = null;
+    mode = GoalMode.IDLE;
+    beatPhase = BeatPhase.PREPARE_OVERWORLD;
+    awaitingRespawn = false;
+    bot.botControl().stopAll();
+    team().releaseClaims(bot);
+    status = "automation disabled";
+  }
+
+  private @Nullable String effectivePhaseName() {
+    if (paused && pausedMode == GoalMode.BEAT && pausedBeatPhase != null) {
+      return pausedBeatPhase.name();
+    }
+    return mode == GoalMode.BEAT ? beatPhase.name() : null;
+  }
+
   private void updateBeatPlan(Level level) {
     var role = team().roleFor(bot);
-    var objective = team().objective();
+    var objective = team().objectiveFor(bot);
     switch (beatPhase) {
       case PREPARE_OVERWORLD -> {
         if (requirements.isEmpty()) {
@@ -408,7 +494,7 @@ public final class AutomationController {
           } else if (teamNeeds("item:minecraft:ender_pearl")) {
             pushRequirement(new RequirementGoal("item:minecraft:ender_pearl", role.isNetherSpecialist() ? REQUIRED_ENDER_PEARLS : 1, "ender pearls"));
           } else if (teamNeeds("item:minecraft:ender_eye")) {
-            pushRequirement(new RequirementGoal("item:minecraft:ender_eye", Math.min(REQUIRED_EYES, team().teamTarget("item:minecraft:ender_eye")), "eyes of ender"));
+            pushRequirement(new RequirementGoal("item:minecraft:ender_eye", Math.min(REQUIRED_EYES, team().targetFor(bot, "item:minecraft:ender_eye")), "eyes of ender"));
           } else {
             beatPhase = BeatPhase.RETURN_TO_OVERWORLD;
           }
@@ -466,7 +552,7 @@ public final class AutomationController {
     var role = team().roleFor(bot);
     switch (beatPhase) {
       case ENTER_NETHER -> {
-        if (!team().shouldTravelToNether(bot) && team().objective().ordinal() >= AutomationTeamCoordinator.TeamObjective.STRONGHOLD_HUNT.ordinal()) {
+        if (!team().shouldTravelToNether(bot) && team().objectiveFor(bot).ordinal() >= AutomationTeamCoordinator.TeamObjective.STRONGHOLD_HUNT.ordinal()) {
           beatPhase = BeatPhase.STRONGHOLD_SEARCH;
           return;
         }
@@ -608,7 +694,7 @@ public final class AutomationController {
       goals.add(new RequirementGoal("item:minecraft:flint_and_steel", 1, "portal ignition"));
     }
 
-    if (role.isEndSpecialist() && team().objective().ordinal() >= AutomationTeamCoordinator.TeamObjective.STRONGHOLD_HUNT.ordinal()) {
+    if (role.isEndSpecialist() && team().objectiveFor(bot).ordinal() >= AutomationTeamCoordinator.TeamObjective.STRONGHOLD_HUNT.ordinal()) {
       goals.add(new RequirementGoal("item:minecraft:bow", 1, "end fight"));
       goals.add(new RequirementGoal("item:minecraft:arrow", REQUIRED_ARROWS, "end fight"));
     }
@@ -629,7 +715,7 @@ public final class AutomationController {
   }
 
   private boolean teamNeeds(String requirementKey) {
-    return team().sharedCount(requirementKey) < team().teamTarget(requirementKey);
+    return team().countFor(bot, requirementKey) < team().targetFor(bot, requirementKey);
   }
 
   private boolean needsPortalEngineeringSupplies() {
@@ -681,7 +767,10 @@ public final class AutomationController {
     knownDeaths = deaths;
     var deathPosition = team().lastKnownDeathPosition(bot);
     var deathDimension = team().lastKnownDeathDimension(bot);
-    if (deathPosition.isPresent() && deathDimension.isPresent() && deathDimension.get() == level.dimension()) {
+    if (bot.settingsSource().get(AutomationSettings.ALLOW_DEATH_RECOVERY)
+      && deathPosition.isPresent()
+      && deathDimension.isPresent()
+      && deathDimension.get() == level.dimension()) {
       team().noteRecovery(bot, "recovering death drops");
       startAction(new MoveToPositionAction(deathPosition.get(), "recovering dropped items"));
       status = "recovering dropped items";

@@ -26,12 +26,11 @@ That is enough for a prototype automation stack. It is not yet the same as a pro
 
 These are worth stating directly based on the current repository state:
 
-- Automation is still primarily driven through a narrow command surface, not a dedicated automation API.
-- The current command surface is limited to `beat`, `get`, `status`, `teamstatus`, and `stop`.
-- No `AutomationSettings` page is registered alongside the existing Bot, Account, Proxy, AI, and Pathfinding settings pages.
+- The current command surface is still CLI-first and not yet backed by a dedicated automation API.
+- A first `AutomationSettings` page now exists, but it still only covers an initial execution and coordination slice.
 - No automation-specific proto service or gRPC service exists yet.
 - No automation-specific MCP tools exist yet.
-- Team collaboration behavior is implicit in the coordinator rather than first-class and configurable.
+- Team collaboration is now configurable, but it is still much narrower than the full coordination model described below.
 - GUI automation controls and dashboards still live outside this repository and are not yet implemented end-to-end.
 
 ## P0: reliability for 10 parallel beat-game bots
@@ -444,15 +443,12 @@ If the goal is "10 SoulFire bots reliably beat the game in parallel", the highes
 
 These are worth calling out explicitly because they are easy to overlook:
 
-- No automation settings page is registered yet.
-- No collaboration toggle exists yet.
 - No automation-specific proto or gRPC service exists yet.
 - No automation-specific MCP tool surface exists yet.
 - No dedicated GUI client automation dashboard exists in this repository.
 - No dedicated automation event stream or run-report export exists yet.
-- No documented automation settings schema or preset system exists yet.
+- No automation preset system exists yet.
 - No automation-specific permission model exists yet.
-- No automation user documentation exists yet.
 - No 10-bot soak-test suite exists yet.
 - No published automation support matrix exists yet.
 - General survival automation breadth is still narrower than a mature AltoClef-like system.

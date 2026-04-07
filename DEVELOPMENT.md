@@ -3,6 +3,7 @@
 This document is intended to help developers get started with the project and learn how to learn the tools used.
 
 - [Automation roadmap](docs/automation-roadmap.md): maintainer backlog for SoulFire-native automation parity, operator controls, and reliable parallel beat-game runs.
+- [Automation settings and commands](docs/automation-settings.md): current reference for the built-in automation settings page and CLI controls.
 
 ## Protocol Sniffing
 
