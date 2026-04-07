@@ -244,17 +244,21 @@ public final class AutomationTeamCoordinator {
 
     var anchorX = floorToGrid(focus.x, spacing);
     var anchorZ = floorToGrid(focus.z, spacing);
-    for (var offset : spiralOffsets(7)) {
+    Vec3 fallback = null;
+    for (var offset : explorationOffsets(7)) {
       var dx = offset[0];
       var dz = offset[1];
-      var target = new Vec3(anchorX + dx * spacing + 0.5, focus.y, anchorZ + dz * spacing + 0.5);
+      var target = explorationTargetForOffset(anchorX, anchorZ, focus, spacing, dx, dz);
+      if (fallback == null) {
+        fallback = target;
+      }
       var key = "explore:%s:%s:%d:%d:%d:%d".formatted(dimension.identifier(), purpose, anchorX, anchorZ, dx, dz);
       if (claim(bot.accountProfileId(), key, target, CLAIM_EXPIRY_MILLIS)) {
         return target;
       }
     }
 
-    return focus;
+    return fallback != null ? fallback : focus;
   }
 
   public synchronized Vec3 assignLayeredExplorationTarget(BotConnection bot,
@@ -268,14 +272,15 @@ public final class AutomationTeamCoordinator {
 
     var anchorX = floorToGrid(focus.x, spacing);
     var anchorZ = floorToGrid(focus.z, spacing);
-    for (var offset : spiralOffsets(6)) {
+    Vec3 fallback = null;
+    for (var offset : explorationOffsets(6)) {
       for (var yOffset : yOffsets) {
         var dx = offset[0];
         var dz = offset[1];
-        var target = new Vec3(
-          anchorX + dx * spacing + 0.5,
-          clampTargetY(dimension, focus.y + yOffset),
-          anchorZ + dz * spacing + 0.5);
+        var target = layeredExplorationTargetForOffset(dimension, anchorX, anchorZ, focus, spacing, dx, dz, yOffset);
+        if (fallback == null) {
+          fallback = target;
+        }
         var key = "explore3d:%s:%s:%d:%d:%d:%d:%d".formatted(
           dimension.identifier(), purpose, anchorX, anchorZ, dx, dz, yOffset);
         if (claim(bot.accountProfileId(), key, target, CLAIM_EXPIRY_MILLIS)) {
@@ -284,7 +289,7 @@ public final class AutomationTeamCoordinator {
       }
     }
 
-    return new Vec3(focus.x, clampTargetY(dimension, focus.y), focus.z);
+    return fallback != null ? fallback : new Vec3(focus.x, clampTargetY(dimension, focus.y), focus.z);
   }
 
   public synchronized void reportEyeSample(BotConnection bot, Vec3 origin, Vec3 direction) {
@@ -810,7 +815,7 @@ public final class AutomationTeamCoordinator {
     return Optional.of(new Vec3(sumX / matches.size(), y, sumZ / matches.size()));
   }
 
-  private double clampTargetY(ResourceKey<Level> dimension, double y) {
+  private static double clampTargetY(ResourceKey<Level> dimension, double y) {
     if (dimension == Level.NETHER) {
       return Math.max(50.0, Math.min(96.0, y));
     }
@@ -1011,6 +1016,35 @@ public final class AutomationTeamCoordinator {
 
   private static int floorToGrid(double value, int spacing) {
     return Math.floorDiv((int) Math.floor(value), spacing) * spacing;
+  }
+
+  static Vec3 explorationTargetForOffset(int anchorX, int anchorZ, Vec3 focus, int spacing, int dx, int dz) {
+    return new Vec3(anchorX + dx * spacing + 0.5, focus.y, anchorZ + dz * spacing + 0.5);
+  }
+
+  static Vec3 layeredExplorationTargetForOffset(ResourceKey<Level> dimension,
+                                                int anchorX,
+                                                int anchorZ,
+                                                Vec3 focus,
+                                                int spacing,
+                                                int dx,
+                                                int dz,
+                                                int yOffset) {
+    return new Vec3(
+      anchorX + dx * spacing + 0.5,
+      clampTargetY(dimension, focus.y + yOffset),
+      anchorZ + dz * spacing + 0.5);
+  }
+
+  static List<int[]> explorationOffsets(int maxRadius) {
+    var offsets = new ArrayList<int[]>();
+    for (var offset : spiralOffsets(maxRadius)) {
+      if (offset[0] == 0 && offset[1] == 0) {
+        continue;
+      }
+      offsets.add(offset);
+    }
+    return offsets;
   }
 
   private static List<int[]> spiralOffsets(int maxRadius) {
