@@ -56,6 +56,43 @@ Current `automation` command surface:
 - `automation stop`
   Stops automation for the selected bots.
 
+## Current gRPC and MCP API surface
+
+SoulFire now exposes a first dedicated automation API instead of requiring operators to go through generic command dispatch for the main runtime actions.
+
+Current gRPC RPCs:
+
+- `GetAutomationTeamState`
+  Returns instance-level automation settings, team objective, team quotas, and structured per-bot runtime state.
+- `GetAutomationBotState`
+  Returns structured automation state for one connected bot.
+- `StartAutomationBeat`
+  Starts beat-the-game automation for the selected connected bots.
+- `StartAutomationAcquire`
+  Starts a resource acquisition goal for the selected connected bots.
+- `PauseAutomation`
+  Pauses automation without clearing the current goal.
+- `ResumeAutomation`
+  Resumes paused automation.
+- `StopAutomation`
+  Stops automation and clears the current goal.
+- `ApplyAutomationPreset`
+  Applies a named automation preset to the instance and persists matching per-bot automation defaults.
+- `SetAutomationCollaboration`
+  Toggles team orchestration by switching between collaborative and independent preset behavior.
+
+Matching MCP tools are also available:
+
+- `get_automation_team_state`
+- `get_automation_bot_state`
+- `start_automation_beat`
+- `start_automation_acquire`
+- `pause_automation`
+- `resume_automation`
+- `stop_automation`
+- `apply_automation_preset`
+- `set_automation_collaboration`
+
 ## Current behavior notes
 
 - When automation is disabled for a bot, the automation controller stands down and releases its claims.
@@ -64,13 +101,14 @@ Current `automation` command surface:
 - Exact item requirement keys are now centralized and validated against `Items.*` during startup, so automation no longer relies on scattered string literals for targets like lava buckets or bows.
 - Shared End entry can now throttle how many bots enter the End simultaneously.
 - Death recovery can now be disabled per bot.
+- A dedicated automation gRPC/MCP control surface now exists for runtime inspection and control.
 
 ## Still missing
 
 This is not the finished automation surface. Major missing pieces are still tracked in [automation-roadmap.md](automation-roadmap.md), including:
 
-- dedicated automation gRPC and MCP APIs
 - GUI dashboards and operator controls
 - richer settings coverage and presets
+- automation event streams, planner traces, and run-report export
 - soak testing and long-run reliability hardening
 - broader survival and task parity work

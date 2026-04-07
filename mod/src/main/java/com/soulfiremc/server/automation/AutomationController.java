@@ -325,6 +325,18 @@ public final class AutomationController {
     return String.join(", ", parts);
   }
 
+  public StatusSnapshot snapshot() {
+    var target = requirements.peek();
+    return new StatusSnapshot(
+      status,
+      mode.name(),
+      paused,
+      effectivePhaseName(),
+      currentAction != null ? currentAction.description() : null,
+      target != null ? target.requirementKey() : null,
+      target != null ? target.count() : 0);
+  }
+
   private boolean rememberOpenContainer(LocalPlayer player) {
     if (player.containerMenu instanceof InventoryMenu) {
       return false;
@@ -1365,6 +1377,15 @@ public final class AutomationController {
   }
 
   private record RequirementGoal(String requirementKey, int count, String reason) {
+  }
+
+  public record StatusSnapshot(String status,
+                               String mode,
+                               boolean paused,
+                               @Nullable String beatPhase,
+                               @Nullable String currentAction,
+                               @Nullable String targetRequirementKey,
+                               int targetRequirementCount) {
   }
 
   private record Plan(@Nullable AutomationAction action, List<RequirementGoal> dependencies, String reason) {

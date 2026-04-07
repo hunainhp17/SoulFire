@@ -86,6 +86,7 @@ public final class MCPService {
     var commandService = new CommandServiceImpl(soulFireServer);
     var serverService = new ServerServiceImpl(soulFireServer);
     var botService = new BotServiceImpl(soulFireServer);
+    var automationService = new AutomationServiceImpl(soulFireServer);
     var userService = new UserServiceImpl(soulFireServer);
     var clientService = new ClientServiceImpl(soulFireServer);
     var metricsService = new MetricsServiceImpl(soulFireServer);
@@ -308,6 +309,127 @@ public final class MCPService {
           BotInfoRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setBotId(str(args, "bot_id"))
+            .build(), o)))));
+
+    // === Automation Tools ===
+    tools.add(tool("get_automation_team_state",
+      "Get structured automation state for an instance, including collaboration settings, team objective, quotas, and per-bot runtime summaries.",
+      Map.of("instance_id", prop("string", "UUID of the instance")),
+      List.of("instance_id"),
+      authed((exchange, args) ->
+        grpc(o -> automationService.getAutomationTeamState(
+          GetAutomationTeamStateRequest.newBuilder()
+            .setInstanceId(str(args, "instance_id"))
+            .build(), o)))));
+
+    tools.add(tool("get_automation_bot_state",
+      "Get structured automation state for a connected bot, including mode, phase, current action, target requirement, and automation settings.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "bot_id", prop("string", "UUID of the bot")),
+      List.of("instance_id", "bot_id"),
+      authed((exchange, args) ->
+        grpc(o -> automationService.getAutomationBotState(
+          GetAutomationBotStateRequest.newBuilder()
+            .setInstanceId(str(args, "instance_id"))
+            .setBotId(str(args, "bot_id"))
+            .build(), o)))));
+
+    tools.add(tool("start_automation_beat",
+      "Start beat-the-game automation for connected bots in an instance. Omit bot_ids to target all connected bots.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "bot_ids", arrayProp("Optional list of bot UUIDs. Omit to target all connected bots.")),
+      List.of("instance_id"),
+      authed((exchange, args) -> {
+        var builder = AutomationActionRequest.newBuilder()
+          .setInstanceId(str(args, "instance_id"));
+        ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
+        return grpc(o -> automationService.startAutomationBeat(builder.build(), o));
+      })));
+
+    tools.add(tool("start_automation_acquire",
+      "Start a resource acquisition automation goal for connected bots in an instance. Omit bot_ids to target all connected bots.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "bot_ids", arrayProp("Optional list of bot UUIDs. Omit to target all connected bots."),
+        "target", prop("string", "Automation requirement key or alias, for example 'lava_bucket', 'ender_pearl', or 'group:any_bed'"),
+        "count", prop("integer", "How many units of the target to acquire")),
+      List.of("instance_id", "target", "count"),
+      authed((exchange, args) -> {
+        var builder = StartAutomationAcquireRequest.newBuilder()
+          .setInstanceId(str(args, "instance_id"))
+          .setTarget(str(args, "target"))
+          .setCount(num(args, "count"));
+        ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
+        return grpc(o -> automationService.startAutomationAcquire(builder.build(), o));
+      })));
+
+    tools.add(tool("pause_automation",
+      "Pause automation for connected bots in an instance without clearing their current goal. Omit bot_ids to target all connected bots.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "bot_ids", arrayProp("Optional list of bot UUIDs. Omit to target all connected bots.")),
+      List.of("instance_id"),
+      authed((exchange, args) -> {
+        var builder = AutomationActionRequest.newBuilder()
+          .setInstanceId(str(args, "instance_id"));
+        ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
+        return grpc(o -> automationService.pauseAutomation(builder.build(), o));
+      })));
+
+    tools.add(tool("resume_automation",
+      "Resume paused automation for connected bots in an instance. Omit bot_ids to target all connected bots.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "bot_ids", arrayProp("Optional list of bot UUIDs. Omit to target all connected bots.")),
+      List.of("instance_id"),
+      authed((exchange, args) -> {
+        var builder = AutomationActionRequest.newBuilder()
+          .setInstanceId(str(args, "instance_id"));
+        ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
+        return grpc(o -> automationService.resumeAutomation(builder.build(), o));
+      })));
+
+    tools.add(tool("stop_automation",
+      "Stop automation for connected bots in an instance and clear their current goal. Omit bot_ids to target all connected bots.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "bot_ids", arrayProp("Optional list of bot UUIDs. Omit to target all connected bots.")),
+      List.of("instance_id"),
+      authed((exchange, args) -> {
+        var builder = AutomationActionRequest.newBuilder()
+          .setInstanceId(str(args, "instance_id"));
+        ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
+        return grpc(o -> automationService.stopAutomation(builder.build(), o));
+      })));
+
+    tools.add(tool("apply_automation_preset",
+      "Apply an automation preset to an instance and persist the matching per-bot automation defaults. Omit bot_ids to target all configured bots.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "bot_ids", arrayProp("Optional list of bot UUIDs. Omit to target all configured bots in the instance."),
+        "preset", prop("string", "One of: balanced-team, independent-runners, cautious-team")),
+      List.of("instance_id", "preset"),
+      authed((exchange, args) -> {
+        var builder = ApplyAutomationPresetRequest.newBuilder()
+          .setInstanceId(str(args, "instance_id"))
+          .setPreset(AutomationPreset.valueOf("AUTOMATION_PRESET_" + str(args, "preset").trim().toUpperCase().replace('-', '_')));
+        ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
+        return grpc(o -> automationService.applyAutomationPreset(builder.build(), o));
+      })));
+
+    tools.add(tool("set_automation_collaboration",
+      "Toggle team orchestration for an instance. Disabling collaboration switches the instance to independent runners; enabling it switches back to the balanced team preset.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "enabled", prop("boolean", "Whether team collaboration should be enabled")),
+      List.of("instance_id", "enabled"),
+      authed((exchange, args) ->
+        grpc(o -> automationService.setAutomationCollaboration(
+          SetAutomationCollaborationRequest.newBuilder()
+            .setInstanceId(str(args, "instance_id"))
+            .setEnabled(bool(args, "enabled"))
             .build(), o)))));
 
     tools.add(tool("set_bot_movement",
@@ -728,6 +850,7 @@ public final class MCPService {
         SoulFire is a Minecraft bot automation tool. You can use these tools to:
         - Manage instances (create, delete, start, stop, pause, configure)
         - Control bots (movement, rotation, inventory, hotbar)
+        - Inspect and control native automation runs
         - Execute commands (Brigadier command format)
         - Manage accounts and proxies
         - View logs and metrics
@@ -747,12 +870,28 @@ public final class MCPService {
     return Map.of("type", type, "description", description);
   }
 
+  private static Map<String, Object> arrayProp(String description) {
+    return Map.of(
+      "type", "array",
+      "description", description,
+      "items", Map.of("type", "string"));
+  }
+
   private static String str(Map<String, Object> args, String key) {
     return (String) args.get(key);
   }
 
   private static int num(Map<String, Object> args, String key) {
     return ((Number) args.get(key)).intValue();
+  }
+
+  private static boolean bool(Map<String, Object> args, String key) {
+    return (Boolean) args.get(key);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static List<String> strList(Map<String, Object> args, String key) {
+    return (List<String>) args.get(key);
   }
 
   private static void ifPresent(Map<String, Object> args, String key, Consumer<Object> action) {

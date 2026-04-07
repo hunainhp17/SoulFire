@@ -24,11 +24,12 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.soulfiremc.server.InstanceManager;
+import com.soulfiremc.server.automation.AutomationControlSupport;
 import com.soulfiremc.server.automation.AutomationRequirements;
 import com.soulfiremc.server.database.AuditLogType;
 import com.soulfiremc.server.settings.instance.AutomationSettings;
-import com.soulfiremc.server.util.structs.GsonInstance;
 import com.soulfiremc.server.command.CommandSourceStack;
+import com.soulfiremc.server.util.structs.GsonInstance;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 
@@ -111,17 +112,17 @@ public final class AutomationCommand {
     root.then(literal("collaboration")
       .then(argument("enabled", BoolArgumentType.bool())
         .executes(help(
-          "Toggles team orchestration for visible instances. When disabled, bots run as isolated solo automations.",
+            "Toggles team orchestration for visible instances. When disabled, bots run as isolated solo automations.",
           c -> {
             var enabled = BoolArgumentType.getBool(c, "enabled");
-            var preset = enabled ? AutomationSettings.Preset.BALANCED_TEAM : AutomationSettings.Preset.INDEPENDENT_RUNNERS;
             return forEveryInstance(c, instance -> {
-              applyInstancePresetSettings(instance, preset);
-              instance.addAuditLog(c.getSource().source(), AuditLogType.AUTOMATION_UPDATE_SETTINGS, "team-collaboration=%s preset=%s".formatted(enabled, formatEnumId(preset)));
+              AutomationControlSupport.applyCollaborationPreset(instance, enabled);
+              var preset = enabled ? AutomationSettings.Preset.BALANCED_TEAM : AutomationSettings.Preset.INDEPENDENT_RUNNERS;
+              instance.addAuditLog(c.getSource().source(), AuditLogType.AUTOMATION_UPDATE_SETTINGS, "team-collaboration=%s preset=%s".formatted(enabled, AutomationControlSupport.formatEnumId(preset)));
               c.getSource().source().sendInfo("%s: team collaboration %s (%s)".formatted(
                 instance.friendlyNameCache().get(),
                 enabled ? "enabled" : "disabled",
-                formatEnumId(preset)));
+                AutomationControlSupport.formatEnumId(preset)));
               return Command.SINGLE_SUCCESS;
             });
           }))));
@@ -137,7 +138,7 @@ public final class AutomationCommand {
               instance.addAuditLog(c.getSource().source(), AuditLogType.AUTOMATION_UPDATE_SETTINGS, "role-policy=" + formatEnumId(rolePolicy));
               c.getSource().source().sendInfo("%s: automation role policy set to %s".formatted(
                 instance.friendlyNameCache().get(),
-                formatEnumId(rolePolicy)));
+                AutomationControlSupport.formatEnumId(rolePolicy)));
               return Command.SINGLE_SUCCESS;
             });
           }))));
@@ -223,7 +224,7 @@ public final class AutomationCommand {
               + ": preset=%s collaboration=%s rolePolicy=%s sharedEndEntry=%s maxEndBots=%d objective=%s bots=%d blaze=%d/%d pearls=%d/%d eyes=%d/%d arrows=%d/%d beds=%d/%d".formatted(
               formatEnumId(summary.preset()),
               summary.collaborationEnabled() ? "on" : "off",
-              formatEnumId(summary.rolePolicy()),
+              AutomationControlSupport.formatEnumId(summary.rolePolicy()),
               summary.sharedEndEntry() ? "on" : "off",
               summary.maxEndBots(),
               summary.objective().name().toLowerCase(),
@@ -247,7 +248,7 @@ public final class AutomationCommand {
               var recovery = status.lastRecoveryReason() == null ? "-" : status.lastRecoveryReason();
               c.getSource().source().sendInfo("  %s: role=%s, status=%s, phase=%s, dim=%s, pos=%s, deaths=%d, timeouts=%d, recoveries=%d, last=%s".formatted(
                 status.accountName(),
-                status.role().name().toLowerCase(),
+                status.role().name().toLowerCase(Locale.ROOT),
                 status.status(),
                 phase,
                 dimension,
@@ -275,68 +276,21 @@ public final class AutomationCommand {
   private static void applyPreset(com.mojang.brigadier.context.CommandContext<CommandSourceStack> context,
                                   AutomationSettings.Preset preset) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
     forEveryInstance(context, instance -> {
-      applyInstancePresetSettings(instance, preset);
-      instance.addAuditLog(context.getSource().source(), AuditLogType.AUTOMATION_APPLY_PRESET, "preset=" + formatEnumId(preset));
+      AutomationControlSupport.applyInstancePresetSettings(instance, preset);
+      instance.addAuditLog(context.getSource().source(), AuditLogType.AUTOMATION_APPLY_PRESET, "preset=" + AutomationControlSupport.formatEnumId(preset));
       context.getSource().source().sendInfo("%s: applied automation preset %s".formatted(
         instance.friendlyNameCache().get(),
-        formatEnumId(preset)));
+        AutomationControlSupport.formatEnumId(preset)));
       return Command.SINGLE_SUCCESS;
     });
 
     forEveryBot(context, bot -> {
-      bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.ENABLED, GsonInstance.GSON.toJsonTree(true));
-      switch (preset) {
-        case BALANCED_TEAM -> {
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.ALLOW_DEATH_RECOVERY, GsonInstance.GSON.toJsonTree(true));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.RETREAT_HEALTH_THRESHOLD, GsonInstance.GSON.toJsonTree(8));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.RETREAT_FOOD_THRESHOLD, GsonInstance.GSON.toJsonTree(12));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.MEMORY_SCAN_RADIUS, GsonInstance.GSON.toJsonTree(48));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.MEMORY_SCAN_INTERVAL_TICKS, GsonInstance.GSON.toJsonTree(20));
-        }
-        case INDEPENDENT_RUNNERS -> {
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.ALLOW_DEATH_RECOVERY, GsonInstance.GSON.toJsonTree(true));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.RETREAT_HEALTH_THRESHOLD, GsonInstance.GSON.toJsonTree(7));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.RETREAT_FOOD_THRESHOLD, GsonInstance.GSON.toJsonTree(10));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.MEMORY_SCAN_RADIUS, GsonInstance.GSON.toJsonTree(40));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.MEMORY_SCAN_INTERVAL_TICKS, GsonInstance.GSON.toJsonTree(24));
-        }
-        case CAUTIOUS_TEAM -> {
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.ALLOW_DEATH_RECOVERY, GsonInstance.GSON.toJsonTree(true));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.RETREAT_HEALTH_THRESHOLD, GsonInstance.GSON.toJsonTree(12));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.RETREAT_FOOD_THRESHOLD, GsonInstance.GSON.toJsonTree(14));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.MEMORY_SCAN_RADIUS, GsonInstance.GSON.toJsonTree(56));
-          bot.instanceManager().updateBotSetting(bot.accountProfileId(), AutomationSettings.MEMORY_SCAN_INTERVAL_TICKS, GsonInstance.GSON.toJsonTree(16));
-        }
-      }
+      AutomationControlSupport.applyBotPresetSettings(bot.instanceManager(), bot.accountProfileId(), preset);
       context.getSource().source().sendInfo("%s: applied automation bot profile for preset %s".formatted(
         bot.accountName(),
-        formatEnumId(preset)));
+        AutomationControlSupport.formatEnumId(preset)));
       return Command.SINGLE_SUCCESS;
     });
-  }
-
-  private static void applyInstancePresetSettings(InstanceManager instance, AutomationSettings.Preset preset) {
-    instance.updateInstanceSetting(AutomationSettings.PRESET, GsonInstance.GSON.toJsonTree(preset.name()));
-    switch (preset) {
-      case BALANCED_TEAM -> {
-        instance.updateInstanceSetting(AutomationSettings.TEAM_COLLABORATION, GsonInstance.GSON.toJsonTree(true));
-        instance.updateInstanceSetting(AutomationSettings.ROLE_POLICY, GsonInstance.GSON.toJsonTree(AutomationSettings.RolePolicy.STATIC_TEAM.name()));
-        instance.updateInstanceSetting(AutomationSettings.SHARED_END_ENTRY, GsonInstance.GSON.toJsonTree(true));
-        instance.updateInstanceSetting(AutomationSettings.MAX_END_BOTS, GsonInstance.GSON.toJsonTree(3));
-      }
-      case INDEPENDENT_RUNNERS -> {
-        instance.updateInstanceSetting(AutomationSettings.TEAM_COLLABORATION, GsonInstance.GSON.toJsonTree(false));
-        instance.updateInstanceSetting(AutomationSettings.ROLE_POLICY, GsonInstance.GSON.toJsonTree(AutomationSettings.RolePolicy.INDEPENDENT.name()));
-        instance.updateInstanceSetting(AutomationSettings.SHARED_END_ENTRY, GsonInstance.GSON.toJsonTree(false));
-        instance.updateInstanceSetting(AutomationSettings.MAX_END_BOTS, GsonInstance.GSON.toJsonTree(10));
-      }
-      case CAUTIOUS_TEAM -> {
-        instance.updateInstanceSetting(AutomationSettings.TEAM_COLLABORATION, GsonInstance.GSON.toJsonTree(true));
-        instance.updateInstanceSetting(AutomationSettings.ROLE_POLICY, GsonInstance.GSON.toJsonTree(AutomationSettings.RolePolicy.STATIC_TEAM.name()));
-        instance.updateInstanceSetting(AutomationSettings.SHARED_END_ENTRY, GsonInstance.GSON.toJsonTree(true));
-        instance.updateInstanceSetting(AutomationSettings.MAX_END_BOTS, GsonInstance.GSON.toJsonTree(2));
-      }
-    }
   }
 
   private static AutomationSettings.Preset parsePreset(String raw) {
@@ -352,7 +306,7 @@ public final class AutomationCommand {
   }
 
   private static String formatEnumId(Enum<?> value) {
-    return value.name().toLowerCase(Locale.ROOT).replace('_', '-');
+    return AutomationControlSupport.formatEnumId(value);
   }
 
   private static final class TargetSuggestionProvider implements SuggestionProvider<CommandSourceStack> {

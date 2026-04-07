@@ -26,10 +26,9 @@ That is enough for a prototype automation stack. It is not yet the same as a pro
 
 These are worth stating directly based on the current repository state:
 
-- The current command surface is still CLI-first and not yet backed by a dedicated automation API.
+- The current command surface is still CLI-first, even though a first dedicated automation API now exists.
 - A first `AutomationSettings` page now exists, but it still only covers an initial execution and coordination slice.
-- No automation-specific proto service or gRPC service exists yet.
-- No automation-specific MCP tools exist yet.
+- A first automation proto, gRPC, and MCP surface now exists for state snapshots and core control actions, but it is still far from complete.
 - Team collaboration is now configurable, but it is still much narrower than the full coordination model described below.
 - GUI automation controls and dashboards still live outside this repository and are not yet implemented end-to-end.
 
@@ -192,8 +191,8 @@ The current team coordinator is useful, but still too fixed and too implicit.
 
 ### Collaboration settings
 
-- Add a top-level automation settings page.
-- Include a simple on/off toggle for team collaboration.
+- Expand the existing automation settings page beyond the current first execution and coordination slice.
+- Keep the simple on/off collaboration toggle, but add more granular collaboration controls underneath it.
 - Add toggles for role specialization, shared looting, shared structures, and shared End entry.
 - Add caps for how many bots may enter the nether, stronghold, and End at once.
 - Add settings for shared exploration spacing and structure claim lease time.
@@ -209,11 +208,11 @@ The current team coordinator is useful, but still too fixed and too implicit.
 
 ## P3: settings, protocol, commands, and client surface
 
-There is currently no automation settings object registered alongside Bot, Account, Proxy, AI, and Pathfinding settings.
+A first automation settings object is now registered alongside Bot, Account, Proxy, AI, and Pathfinding settings, but it still only covers a narrow operator slice.
 
 ### Server settings and config model
 
-- Add `AutomationSettings` as a first-class instance settings page.
+- Expand `AutomationSettings` from its current first-class settings page into a fuller configuration surface.
 - Define stable namespaces and keys for automation configuration.
 - Separate team-level settings from per-bot settings where appropriate.
 - Support presets for common modes: solo survival, team beat-game, resource farming, structure search.
@@ -260,17 +259,29 @@ These key names are illustrative rather than final, but the product needs this l
 
 ### gRPC, MCP, and protocol surface
 
-- Add explicit automation RPCs instead of relying on generic command dispatch.
+- Expand the new explicit automation RPCs instead of relying on generic command dispatch for advanced operations.
 - Add automation status streaming and event streaming.
 - Expose the automation phase, current action, planner queue, role, objective, and recovery state over RPC.
 - Expose team summaries, claims, and shared memory snapshots over RPC.
-- Add automation actions to MCP tooling so external agents can inspect and control automation directly.
+- Expand the new automation MCP tooling so external agents can inspect and control automation directly beyond the first action set.
 - Add versioned proto messages for automation settings and telemetry.
 - Add automation-specific audit log events.
 
 ### Suggested automation API surface
 
 At minimum, the dedicated automation API likely needs:
+
+Already implemented in the first API slice:
+
+- `GetAutomationTeamState`
+- `GetAutomationBotState`
+- `StartAutomationBeat`
+- `StartAutomationAcquire`
+- `PauseAutomation`
+- `ResumeAutomation`
+- `StopAutomation`
+- `ApplyAutomationPreset`
+- `SetAutomationCollaboration`
 
 - `StartAutomationRun`
 - `StopAutomationRun`
@@ -443,11 +454,9 @@ If the goal is "10 SoulFire bots reliably beat the game in parallel", the highes
 
 These are worth calling out explicitly because they are easy to overlook:
 
-- No automation-specific proto or gRPC service exists yet.
-- No automation-specific MCP tool surface exists yet.
+- The current automation proto/gRPC/MCP surface does not yet include streams, planner traces, force actions, or run-report export.
 - No dedicated GUI client automation dashboard exists in this repository.
 - No dedicated automation event stream or run-report export exists yet.
-- No automation preset system exists yet.
 - No automation-specific permission model exists yet.
 - No 10-bot soak-test suite exists yet.
 - No published automation support matrix exists yet.

@@ -100,6 +100,7 @@ public final class RPCServer {
           new LoginRateLimitingInterceptor(),
           new JwtServerInterceptor(soulFireServer)
         ))
+        .addService(new AutomationServiceImpl(soulFireServer))
         .addService(new BotServiceImpl(soulFireServer))
         .addService(new ClientServiceImpl(soulFireServer))
         .addService(new CommandServiceImpl(soulFireServer))
