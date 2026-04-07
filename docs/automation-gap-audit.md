@@ -26,6 +26,7 @@ These gaps were closed in the current implementation slice:
 - dashboard-level bot search, role/status/dimension filtering, selection state, bulk interventions, and bulk bot-settings patching
 - first dedicated per-bot memory browser in the dashboard, including inspect-from-bot-card workflow, capped memory snapshots, and direct reset handoff
 - first operator-facing run-health summaries and stuck-bot diagnostics in the dashboard, including attention filtering and intervention hints
+- first owner-aware claim explorer in the dashboard, including claim search, owner/type filters, focus-owner workflow, and per-bot claim-footprint summaries
 - refreshed operator docs for automation settings, commands, APIs, and current GUI behavior
 
 ## Remaining gaps by area
@@ -71,7 +72,7 @@ These gaps were closed in the current implementation slice:
 - Extend the first per-bot memory browser into cross-bot comparison, shared-memory explanation, and richer target-why context.
 - Add richer bulk workflows such as saved operator views, bulk acquire/goal actions, and bulk settings presets beyond the current intervention/toggle surface.
 - Add force-action controls such as quarantine, force objective, force target, and phase restart.
-- Extend the first stuck-bot diagnostics into planner-wait, claim-owner, and missing-context explanations that show exactly why a bot is blocked.
+- Extend the first stuck-bot diagnostics into planner-wait and missing-context explanations that show exactly why a bot is blocked even after current claim-owner context is visible.
 - Add run history, incident history, and post-run summaries.
 - Add timeline views for deaths, recoveries, claim churn, and phase transitions.
 - Finish richer settings forms with inline documentation and validation for every automation option, including the still-generic settings-page-only fields.

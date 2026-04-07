@@ -35,7 +35,7 @@ These are worth stating directly based on the current repository state:
 - A first automation proto, gRPC, and MCP surface now exists for state snapshots, coordination snapshots, bot-settings patching, and core control actions, but it is still far from complete.
 - Team collaboration is now configurable, including structure-intel and target-claim sharing, but it is still much narrower than the full coordination model described below.
 - Operator overrides now exist for forcing roles and objectives plus releasing claims, but not yet for claim creation, targets, phases, or subteams.
-- A first official automation dashboard now exists in `SoulFireClient`, including team controls, per-bot tuning, filtered team views, bulk interventions, a dedicated per-bot memory browser, and first-pass run-health diagnostics, but it is still a polling-based operator view rather than a complete live control center.
+- A first official automation dashboard now exists in `SoulFireClient`, including team controls, per-bot tuning, filtered team views, bulk interventions, a dedicated per-bot memory browser, a first claim explorer, and first-pass run-health diagnostics, but it is still a polling-based operator view rather than a complete live control center.
 
 ## P0: reliability for 10 parallel beat-game bots
 
@@ -352,20 +352,20 @@ The proto layer should clearly separate:
 The official GUI client is in a different repository, but the following features are still needed:
 
 - Dedicated automation settings page already exists through the built-in settings model and is now discoverable in the official client, but it still needs richer inline docs and validation.
-- Coordination inspection now exists on the first automation dashboard, but it still needs map, timeline, and history views.
+- Coordination inspection now exists on the first automation dashboard, including filtered claim inspection and owner-focused claim actions, but it still needs map, timeline, and history views.
 - A first automation dashboard per instance now exists, but it is still a polling-based operator view rather than a full live control center.
 - Dedicated override-management controls now exist for presets, collaboration, role policy, objective override, team quota overrides, and per-bot roles, but future force actions are still missing.
-- Per-bot automation panels showing phase, task tree, planner queue, deaths, and last recovery.
+- Per-bot automation panels now show phase, current action, queued requirements, deaths, recoveries, and last progress, but task trees and planner traces still do not.
 - Team view showing roles, quotas, structure targets, and shared objective.
 - Map or world overlay for shared claims, portals, fortress hints, stronghold estimate, and portal-room estimate.
 - Controls to pause, resume, reprioritize, or remove bots from a collaborative run.
 - Collaboration toggle controls now exist, but there are still no controls for quarantine, subteams, or richer coordination modes.
-- First stuck-bot diagnostics now exist, but deeper explanations for exactly what a bot is waiting on or missing still do not.
+- First stuck-bot diagnostics plus claim-owner context now exist, but deeper explanations for exactly what a bot is waiting on or missing still do not.
 - Run history and post-run summaries.
 - Live timeline views that correlate planner decisions, deaths, claims, and recoveries.
 - Rich settings forms with presets, validation, and inline documentation for every option.
 - Controls to force objectives, force roles, and manually hand bots into or out of subteams.
-- A first dedicated per-bot memory browser now exists, but cross-bot memory comparison plus deeper claim tooling for understanding and editing coordinator choices still do not.
+- A first dedicated per-bot memory browser and claim explorer now exist, but cross-bot memory comparison plus manual claim editing and claim-retarget tooling still do not.
 - Notification surfaces for phase completion, repeated failures, death spikes, and low-confidence runs.
 - Quick controls already exist for pausing or resuming bots and the team plus stopping and resetting coordination, but "resume only healthy bots" and "quarantine bot" still do not.
 
