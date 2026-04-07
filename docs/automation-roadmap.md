@@ -35,7 +35,7 @@ These are worth stating directly based on the current repository state:
 - A first automation proto, gRPC, and MCP surface now exists for state snapshots, coordination snapshots, bot-settings patching, and core control actions, but it is still far from complete.
 - Team collaboration is now configurable, including structure-intel and target-claim sharing, but it is still much narrower than the full coordination model described below.
 - Operator overrides now exist for forcing roles and objectives plus releasing claims, but not yet for claim creation, targets, phases, or subteams.
-- A first official automation dashboard now exists in `SoulFireClient`, including team controls, per-bot tuning, filtered team views, bulk interventions, a dedicated per-bot memory browser, a first claim explorer, and first-pass run-health diagnostics, but it is still a polling-based operator view rather than a complete live control center.
+- A first official automation dashboard now exists in `SoulFireClient`, including team controls, per-bot tuning, filtered team views, bulk interventions, a dedicated per-bot memory browser, a first claim explorer, first-pass run-health diagnostics, and health-aware quick actions, but it is still a polling-based operator view rather than a complete live control center.
 
 ## P0: reliability for 10 parallel beat-game bots
 
@@ -367,7 +367,7 @@ The official GUI client is in a different repository, but the following features
 - Controls to force objectives, force roles, and manually hand bots into or out of subteams.
 - A first dedicated per-bot memory browser and claim explorer now exist, but cross-bot memory comparison plus manual claim editing and claim-retarget tooling still do not.
 - Notification surfaces for phase completion, repeated failures, death spikes, and low-confidence runs.
-- Quick controls already exist for pausing or resuming bots and the team plus stopping and resetting coordination, but "resume only healthy bots" and "quarantine bot" still do not.
+- Quick controls already exist for pausing or resuming bots and the team plus stopping, health-aware selection, and resetting coordination, but "quarantine bot" still does not.
 
 ## P4: observability, metrics, and operator tooling
 

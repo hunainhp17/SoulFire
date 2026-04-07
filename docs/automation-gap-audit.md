@@ -27,6 +27,7 @@ These gaps were closed in the current implementation slice:
 - first dedicated per-bot memory browser in the dashboard, including inspect-from-bot-card workflow, capped memory snapshots, and direct reset handoff
 - first operator-facing run-health summaries and stuck-bot diagnostics in the dashboard, including attention filtering and intervention hints
 - first owner-aware claim explorer in the dashboard, including claim search, owner/type filters, focus-owner workflow, and per-bot claim-footprint summaries
+- first health-aware bulk actions in the dashboard, including select-attention, pause-critical, and resume-healthy-paused workflows
 - refreshed operator docs for automation settings, commands, APIs, and current GUI behavior
 
 ## Remaining gaps by area

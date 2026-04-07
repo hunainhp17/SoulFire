@@ -221,6 +221,7 @@ The current `SoulFireClient` automation dashboard provides:
 - per-bot runtime cards with editable automation enablement, death recovery, scan tuning, retreat thresholds, role override, status summary, role, objective, phase, location, current action, queued targets, recovery counters, and recent progress timestamps
 - bot search plus role, status, dimension, and attention filters for narrowing large team views
 - first dashboard-level run-health summaries and stuck-bot diagnostics derived from progress age, timeouts, deaths, recoveries, and queued work
+- health-aware quick actions for selecting bots needing attention, pausing critical bots, and resuming paused bots that still look healthy
 - per-bot claim-footprint summaries that show how many shared coordinator reservations each bot is currently holding
 - dashboard selection state and bulk actions for pause, resume, stop, reset memory, release claims, and light bot-settings patching across selected bots
 - a dedicated per-bot memory browser with remembered block, container, entity, dropped-item, and unreachable-position snapshots plus direct inspect and reset actions
@@ -242,6 +243,7 @@ This is a first operator dashboard rather than a finished automation control cen
 - Team requirement quotas for blaze rods, pearls, eyes, arrows, and beds can now be overridden explicitly from CLI, gRPC, MCP, the built-in settings page, and the automation dashboard while keeping `0` as the automatic team-size-based mode.
 - Dedicated per-bot automation tuning now exists in the automation dashboard and over the dedicated automation API, so operators can change enablement, recovery, scan cadence, retreat thresholds, and role override without dropping back to the generic settings surface.
 - The automation dashboard now derives first-pass run-health diagnostics from the current polled runtime snapshot, highlighting paused, stale, repeatedly timing-out, or repeatedly recovering bots before operators intervene.
+- Health-aware dashboard quick actions now exist for selecting degraded bots and resuming paused bots that still look healthy by current counters, but that resume check is still heuristic rather than planner-aware.
 - The automation dashboard now also surfaces first-pass claim-owner context by showing per-bot claim footprints and a filtered claim explorer, but it still does not explain planner waits or let operators retarget claims.
 - Exact item requirement keys are centralized and validated against `Items.*` during startup, so automation no longer relies on scattered string literals for targets like lava buckets or bows.
 - Requirement queues are exposed over both CLI and gRPC/MCP state snapshots.
