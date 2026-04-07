@@ -21,6 +21,7 @@ import com.google.gson.JsonElement;
 import com.soulfiremc.mod.util.SFConstants;
 import com.soulfiremc.server.account.MCAuthService;
 import com.soulfiremc.server.account.MinecraftAccount;
+import com.soulfiremc.server.automation.AutomationTeamCoordinator;
 import com.soulfiremc.server.api.SessionLifecycle;
 import com.soulfiremc.server.api.SoulFireAPI;
 import com.soulfiremc.server.api.event.lifecycle.InstanceSettingsRegistryInitEvent;
@@ -78,6 +79,7 @@ public final class InstanceManager {
   private final CachedLazyObject<String> friendlyNameCache;
   private final SettingsPageRegistry instanceSettingsPageRegistry;
   private final InstanceMetricsCollector metricsCollector;
+  private final AutomationTeamCoordinator automationCoordinator;
   private final AtomicBoolean allBotsConnected = new AtomicBoolean(false);
   private SessionLifecycle sessionLifecycle = SessionLifecycle.STOPPED;
 
@@ -109,6 +111,7 @@ public final class InstanceManager {
 
     this.metricsCollector = new InstanceMetricsCollector(this);
     SoulFireAPI.registerListenersOfObject(metricsCollector);
+    this.automationCoordinator = new AutomationTeamCoordinator(this);
 
     try {
       Files.createDirectories(getInstanceObjectStoragePath());
@@ -179,6 +182,8 @@ public final class InstanceManager {
   }
 
   private void tick() {
+    automationCoordinator.tick();
+
     if (sessionLifecycle().isTicking()) {
       SoulFireAPI.postEvent(new SessionTickEvent(this));
     }

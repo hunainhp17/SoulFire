@@ -192,6 +192,10 @@ public final class AutomationInventory {
     return findInventorySlot(bot, AutomationRequirements.FOOD).isPresent();
   }
 
+  public static boolean hasRangedWeapon(BotConnection bot) {
+    return countInventory(bot, "item:minecraft:bow") > 0 && countInventory(bot, "item:minecraft:arrow") > 0;
+  }
+
   public static int bestPickaxeTier(BotConnection bot) {
     if (countInventory(bot, "item:minecraft:diamond_pickaxe") > 0) {
       return 4;

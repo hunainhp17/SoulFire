@@ -151,6 +151,7 @@ public final class BotConnection {
     this.sessionService = new SFSessionService(this);
     this.currentProtocolVersion = currentProtocolVersion;
     this.isStatusPing = isStatusPing;
+    this.shutdownHooks.add(() -> instanceManager.automationCoordinator().releaseBot(this));
   }
 
   private MetadataHolder<JsonElement> fillPersistentMetadata(MinecraftAccount minecraftAccount) {

@@ -20,6 +20,7 @@ package com.soulfiremc.server.automation;
 import com.soulfiremc.server.bot.BotConnection;
 import com.soulfiremc.server.bot.ControlPriority;
 import com.soulfiremc.server.bot.ControlTask;
+import com.soulfiremc.server.pathfinding.BlockPlaceAgainstData;
 import com.soulfiremc.server.pathfinding.SFVec3i;
 import com.soulfiremc.server.pathfinding.execution.PathExecutor;
 import com.soulfiremc.server.pathfinding.goals.AwayFromPosGoal;
@@ -29,6 +30,7 @@ import com.soulfiremc.server.pathfinding.goals.DynamicGoalScorer;
 import com.soulfiremc.server.pathfinding.goals.GoalScorer;
 import com.soulfiremc.server.pathfinding.goals.PosGoal;
 import com.soulfiremc.server.pathfinding.goals.XZGoal;
+import com.soulfiremc.server.pathfinding.graph.BlockFace;
 import com.soulfiremc.server.pathfinding.graph.constraint.PathConstraintImpl;
 import com.soulfiremc.server.plugins.KillAura;
 import lombok.extern.slf4j.Slf4j;
@@ -60,16 +62,18 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
 public final class AutomationController {
-  private static final int REQUIRED_FOOD = 8;
+  private static final int REQUIRED_FOOD = 12;
   private static final int REQUIRED_BLAZE_RODS = 6;
   private static final int REQUIRED_ENDER_PEARLS = 12;
   private static final int REQUIRED_EYES = 12;
+  private static final int REQUIRED_ARROWS = 24;
+  private static final int REQUIRED_PORTAL_OBSIDIAN = 14;
+  private static final long ACTION_STALL_TICKS = 20L * 15L;
+  private static final long ACTION_TIMEOUT_TICKS = 20L * 45L;
 
   private final BotConnection bot;
   private final AutomationWorldMemory worldMemory = new AutomationWorldMemory();
@@ -79,8 +83,13 @@ public final class AutomationController {
   private BeatPhase beatPhase = BeatPhase.PREPARE_OVERWORLD;
   private long lastProgressTick;
   private long lastEyeThrowTick;
+  private long currentActionStartedTick;
+  private long currentActionMovedTick;
   private @Nullable Vec3 lastEyeDirectionTarget;
+  private @Nullable Vec3 currentActionLastPos;
   private String status = "idle";
+  private boolean awaitingRespawn;
+  private int consecutiveFailures;
 
   public AutomationController(BotConnection bot) {
     this.bot = bot;
@@ -95,12 +104,37 @@ public final class AutomationController {
       return;
     }
 
+    team().observe(bot, worldMemory, status, mode == GoalMode.BEAT ? beatPhase.name() : null);
+
+    if (!player.isAlive()) {
+      awaitingRespawn = true;
+      bot.botControl().stopAll();
+      clearCurrentAction();
+      status = "waiting for respawn";
+      return;
+    }
+
+    if (awaitingRespawn) {
+      awaitingRespawn = false;
+      bot.botControl().stopAll();
+      clearCurrentAction();
+      lastEyeDirectionTarget = null;
+      noteProgress();
+    }
+
     if (rememberOpenContainer(player)) {
       status = "inspecting container";
     }
 
+    updateActionMovement(player);
     if (handleSurvival(player)) {
       return;
+    }
+
+    if (currentAction != null) {
+      if (isCurrentActionStalled()) {
+        timeoutCurrentAction();
+      }
     }
 
     if (currentAction != null) {
@@ -111,10 +145,12 @@ public final class AutomationController {
       }
 
       if (result == ActionResult.SUCCEEDED) {
-        lastProgressTick = worldMemory.ticks();
+        noteProgress();
+      } else {
+        consecutiveFailures++;
       }
 
-      currentAction = null;
+      clearCurrentAction();
     }
 
     if (mode == GoalMode.IDLE) {
@@ -180,11 +216,14 @@ public final class AutomationController {
 
   public void stop() {
     requirements.clear();
-    currentAction = null;
+    clearCurrentAction();
     lastEyeDirectionTarget = null;
     mode = GoalMode.IDLE;
     beatPhase = BeatPhase.PREPARE_OVERWORLD;
+    consecutiveFailures = 0;
+    awaitingRespawn = false;
     bot.botControl().stopAll();
+    team().releaseClaims(bot);
     status = "idle";
   }
 
@@ -249,8 +288,56 @@ public final class AutomationController {
     }
 
     bot.botControl().stopAll();
-    currentAction = null;
+    clearCurrentAction();
     startAction(action);
+  }
+
+  private AutomationTeamCoordinator team() {
+    return bot.instanceManager().automationCoordinator();
+  }
+
+  private void noteProgress() {
+    lastProgressTick = worldMemory.ticks();
+    consecutiveFailures = 0;
+    team().noteProgress(bot);
+  }
+
+  private void clearCurrentAction() {
+    currentAction = null;
+    currentActionStartedTick = 0L;
+    currentActionMovedTick = 0L;
+    currentActionLastPos = null;
+  }
+
+  private void updateActionMovement(LocalPlayer player) {
+    if (currentAction == null) {
+      return;
+    }
+
+    if (currentActionLastPos == null || currentActionLastPos.distanceToSqr(player.position()) >= 4.0) {
+      currentActionLastPos = player.position();
+      currentActionMovedTick = worldMemory.ticks();
+    }
+  }
+
+  private boolean isCurrentActionStalled() {
+    if (currentAction == null) {
+      return false;
+    }
+
+    return worldMemory.ticks() - currentActionStartedTick > ACTION_TIMEOUT_TICKS
+      || worldMemory.ticks() - currentActionMovedTick > ACTION_STALL_TICKS;
+  }
+
+  private void timeoutCurrentAction() {
+    if (currentAction instanceof PositionedAction positionedAction) {
+      worldMemory.markUnreachable(positionedAction.position());
+    }
+
+    bot.botControl().stopAll();
+    clearCurrentAction();
+    consecutiveFailures++;
+    status = "recovering from stalled action";
   }
 
   private void updateBeatPlan(Level level) {
@@ -262,7 +349,9 @@ public final class AutomationController {
             new RequirementGoal("item:minecraft:crafting_table", 1, "crafting"),
             new RequirementGoal("item:minecraft:stone_pickaxe", 1, "tools"),
             new RequirementGoal("item:minecraft:furnace", 1, "smelting"),
-            new RequirementGoal("item:minecraft:iron_ingot", 3, "progression"),
+            new RequirementGoal("item:minecraft:iron_ingot", 7, "progression"),
+            new RequirementGoal("item:minecraft:bucket", 1, "fluids"),
+            new RequirementGoal("item:minecraft:shield", 1, "survival"),
             new RequirementGoal("item:minecraft:flint_and_steel", 1, "portal ignition")
           ));
         }
@@ -295,12 +384,24 @@ public final class AutomationController {
       }
       case RETURN_TO_OVERWORLD -> {
         if (level.dimension() == Level.OVERWORLD) {
-          beatPhase = BeatPhase.STRONGHOLD_SEARCH;
+          if (requirements.isEmpty()) {
+            if (AutomationInventory.countInventory(bot, "item:minecraft:bow") < 1) {
+              pushRequirement(new RequirementGoal("item:minecraft:bow", 1, "end fight"));
+            } else if (AutomationInventory.countInventory(bot, "item:minecraft:arrow") < REQUIRED_ARROWS) {
+              pushRequirement(new RequirementGoal("item:minecraft:arrow", REQUIRED_ARROWS, "end fight"));
+            } else if (AutomationInventory.countInventory(bot, "item:minecraft:shield") < 1) {
+              pushRequirement(new RequirementGoal("item:minecraft:shield", 1, "survival"));
+            } else {
+              beatPhase = BeatPhase.STRONGHOLD_SEARCH;
+            }
+          }
         }
       }
       case STRONGHOLD_SEARCH -> {
         if (level.dimension() == Level.END) {
           beatPhase = BeatPhase.END_FIGHT;
+        } else if (level.dimension() != Level.OVERWORLD) {
+          beatPhase = BeatPhase.RETURN_TO_OVERWORLD;
         } else if (hasRememberedBlock(state -> state.getBlock() == Blocks.END_PORTAL_FRAME || state.getBlock() == Blocks.END_PORTAL)) {
           beatPhase = BeatPhase.ACTIVATE_PORTAL;
         }
@@ -308,11 +409,21 @@ public final class AutomationController {
       case ACTIVATE_PORTAL -> {
         if (level.dimension() == Level.END) {
           beatPhase = BeatPhase.END_FIGHT;
+        } else if (level.dimension() != Level.OVERWORLD) {
+          beatPhase = BeatPhase.RETURN_TO_OVERWORLD;
         }
       }
       case END_FIGHT -> {
+        if (level.dimension() != Level.END) {
+          beatPhase = hasRememberedBlock(state -> state.getBlock() == Blocks.END_PORTAL_FRAME || state.getBlock() == Blocks.END_PORTAL)
+            ? BeatPhase.ACTIVATE_PORTAL
+            : BeatPhase.STRONGHOLD_SEARCH;
+          return;
+        }
+
         var dragonVisible = worldMemory.findNearestEntity(bot, entity -> entity.type() == EntityType.ENDER_DRAGON);
-        if (level.dimension() == Level.END && dragonVisible.isEmpty() && worldMemory.ticks() - lastProgressTick > 200) {
+        var crystalVisible = worldMemory.findNearestEntity(bot, entity -> entity.type() == EntityType.END_CRYSTAL);
+        if (dragonVisible.isEmpty() && crystalVisible.isEmpty() && worldMemory.ticks() - lastProgressTick > 400) {
           beatPhase = BeatPhase.COMPLETE;
         }
       }
@@ -323,17 +434,21 @@ public final class AutomationController {
   private void driveBeatPhase(Level level, LocalPlayer player) {
     switch (beatPhase) {
       case ENTER_NETHER -> {
-        if (worldMemory.findNearestBlock(bot, state -> state.getBlock() == Blocks.NETHER_PORTAL).isPresent()) {
+        if (findAnyPortal(Level.OVERWORLD).isPresent()) {
           startAction(new UsePortalAction(Blocks.NETHER_PORTAL, Level.NETHER));
+        } else if (canBuildPortalHere()) {
+          startAction(new BuildPortalAction("constructing nether portal"));
         } else {
-          startAction(new ExploreAction("searching for nether portal"));
+          startAction(new ExploreAction("searching for nether portal", "nether-entry", player.position(), 128));
         }
       }
       case RETURN_TO_OVERWORLD -> {
-        if (worldMemory.findNearestBlock(bot, state -> state.getBlock() == Blocks.NETHER_PORTAL).isPresent()) {
+        if (findAnyPortal(Level.NETHER).isPresent()) {
           startAction(new UsePortalAction(Blocks.NETHER_PORTAL, Level.OVERWORLD));
+        } else if (canBuildPortalHere()) {
+          startAction(new BuildPortalAction("constructing return portal"));
         } else {
-          startAction(new ExploreAction("searching for return portal"));
+          startAction(new ExploreAction("searching for return portal", "return-portal", player.position(), 96));
         }
       }
       case STRONGHOLD_SEARCH -> {
@@ -348,12 +463,19 @@ public final class AutomationController {
           return;
         }
 
-        if (lastEyeDirectionTarget != null && player.position().distanceTo(lastEyeDirectionTarget) > 10) {
+        var strongholdEstimate = team().strongholdEstimate();
+        if (strongholdEstimate.isPresent() && player.position().distanceTo(strongholdEstimate.get()) > 64) {
+          startAction(new MoveToPositionAction(strongholdEstimate.get(), "moving to stronghold estimate"));
+        } else if (lastEyeDirectionTarget != null && player.position().distanceTo(lastEyeDirectionTarget) > 16) {
           startAction(new MoveToPositionAction(lastEyeDirectionTarget, "following eye of ender"));
         } else if (worldMemory.ticks() - lastEyeThrowTick > 120) {
           startAction(new ThrowEyeAction());
         } else {
-          startAction(new ExploreAction("searching for stronghold"));
+          startAction(new ExploreAction(
+            "searching for stronghold",
+            "stronghold-search",
+            strongholdEstimate.orElse(player.position()),
+            strongholdEstimate.isPresent() ? 48 : 192));
         }
       }
       case ACTIVATE_PORTAL -> {
@@ -368,16 +490,20 @@ public final class AutomationController {
           return;
         }
 
-        var frame = worldMemory.findNearestBlock(bot, state -> state.getBlock() == Blocks.END_PORTAL_FRAME);
+        var frame = worldMemory.findNearestBlock(bot, state -> state.getBlock() == Blocks.END_PORTAL_FRAME && !hasEye(state));
         if (frame.isPresent()) {
           startAction(new FillPortalFrameAction(frame.get().pos()));
         } else {
-          startAction(new ExploreAction("searching for portal room"));
+          startAction(new ExploreAction(
+            "searching for portal room",
+            "portal-room",
+            team().strongholdEstimate().orElse(player.position()),
+            32));
         }
       }
       case END_FIGHT -> {
         var crystal = worldMemory.findNearestEntity(bot, entity -> entity.type() == EntityType.END_CRYSTAL);
-        if (crystal.isPresent()) {
+        if (crystal.isPresent() && team().claimEntity(bot, "end-crystal", crystal.get().uuid(), 15_000L)) {
           startAction(new KillEntityAction(crystal.get().uuid(), "destroying end crystal"));
           return;
         }
@@ -386,7 +512,7 @@ public final class AutomationController {
         if (dragon.isPresent()) {
           startAction(new KillEntityAction(dragon.get().uuid(), "attacking dragon"));
         } else {
-          startAction(new ExploreAction("searching for dragon"));
+          startAction(new ExploreAction("searching for dragon", "end-fight", new Vec3(0.0, player.getY(), 0.0), 48));
         }
       }
       default -> {}
@@ -410,6 +536,32 @@ public final class AutomationController {
     var uninspectedContainer = worldMemory.findNearestUninspectedContainer(bot);
     if (uninspectedContainer.isPresent()) {
       return Plan.action(new InspectContainerAction(uninspectedContainer.get().pos()));
+    }
+
+    if ("item:minecraft:water_bucket".equals(requirementKey)) {
+      if (AutomationInventory.countInventory(bot, "item:minecraft:bucket") < 1) {
+        return Plan.dependencies(List.of(new RequirementGoal("item:minecraft:bucket", 1, "water bucket")), "bucket dependency");
+      }
+
+      var water = worldMemory.findNearestBlock(bot, state -> state.getBlock() == Blocks.WATER);
+      if (water.isPresent()) {
+        return Plan.action(new FillBucketAction(water.get().pos(), "item:minecraft:water_bucket", "collecting water"));
+      }
+
+      return Plan.explore("searching for water");
+    }
+
+    if ("item:minecraft:lava_bucket".equals(requirementKey)) {
+      if (AutomationInventory.countInventory(bot, "item:minecraft:bucket") < 1) {
+        return Plan.dependencies(List.of(new RequirementGoal("item:minecraft:bucket", 1, "lava bucket")), "bucket dependency");
+      }
+
+      var lava = worldMemory.findNearestBlock(bot, state -> state.getBlock() == Blocks.LAVA);
+      if (lava.isPresent()) {
+        return Plan.action(new FillBucketAction(lava.get().pos(), "item:minecraft:lava_bucket", "collecting lava"));
+      }
+
+      return Plan.explore("searching for lava");
     }
 
     if ("item:minecraft:ender_pearl".equals(requirementKey)) {
@@ -467,6 +619,14 @@ public final class AutomationController {
       var entity = worldMemory.findNearestEntity(bot, entitySource.get().predicate());
       if (entity.isPresent()) {
         return Plan.action(new KillEntityAction(entity.get().uuid(), "hunting " + AutomationRequirements.describe(requirementKey)));
+      }
+
+      if ("item:minecraft:blaze_rod".equals(requirementKey) && level.dimension() == Level.NETHER) {
+        var fortress = team().findNearestFortressHint(bot);
+        if (fortress.isPresent()) {
+          return Plan.action(new MoveToPositionAction(fortress.get().pos().getCenter(), "approaching fortress"));
+        }
+        return Plan.action(new ExploreAction("searching for fortress", "nether-fortress", bot.minecraft().player.position(), 160));
       }
 
       if ("item:minecraft:ender_pearl".equals(requirementKey) && level.dimension() == Level.NETHER) {
@@ -548,6 +708,9 @@ public final class AutomationController {
 
   private void startAction(AutomationAction action) {
     currentAction = action;
+    currentActionStartedTick = worldMemory.ticks();
+    currentActionMovedTick = worldMemory.ticks();
+    currentActionLastPos = bot.minecraft().player != null ? bot.minecraft().player.position() : null;
     action.start(this);
     status = action.description();
   }
@@ -604,6 +767,200 @@ public final class AutomationController {
     }
 
     return Optional.of(player.position().add(direction.normalize().scale(64)));
+  }
+
+  private Optional<BlockPos> findAnyPortal(net.minecraft.resources.ResourceKey<Level> dimension) {
+    var level = bot.minecraft().level;
+    if (level != null && level.dimension() == dimension) {
+      var localPortal = worldMemory.findNearestBlock(bot, state -> state.getBlock() == Blocks.NETHER_PORTAL);
+      if (localPortal.isPresent()) {
+        return Optional.of(localPortal.get().pos());
+      }
+    }
+
+    return team().findNearestPortal(bot, dimension).map(AutomationTeamCoordinator.SharedBlock::pos);
+  }
+
+  private boolean canBuildPortalHere() {
+    return findPortalBlueprint().isPresent();
+  }
+
+  private Optional<PortalBlueprint> findPortalBlueprint() {
+    var level = bot.minecraft().level;
+    var player = bot.minecraft().player;
+    if (level == null || player == null) {
+      return Optional.empty();
+    }
+
+    var existing = findExistingPortalBlueprint(level);
+    if (existing.isPresent()) {
+      return existing;
+    }
+
+    if (AutomationInventory.countInventory(bot, "item:minecraft:obsidian") < REQUIRED_PORTAL_OBSIDIAN) {
+      return Optional.empty();
+    }
+
+    return findFreshPortalBlueprint(player, level);
+  }
+
+  private Optional<PortalBlueprint> findExistingPortalBlueprint(Level level) {
+    PortalBlueprint best = null;
+    for (var remembered : worldMemory.rememberedBlocks()) {
+      var block = remembered.state().getBlock();
+      if (block != Blocks.OBSIDIAN && block != Blocks.NETHER_PORTAL) {
+        continue;
+      }
+
+      for (var axis : List.of(Direction.Axis.X, Direction.Axis.Z)) {
+        for (int xOffset = -3; xOffset <= 0; xOffset++) {
+          for (int yOffset = -4; yOffset <= 0; yOffset++) {
+            for (int zOffset = -3; zOffset <= 0; zOffset++) {
+              var base = remembered.pos().offset(
+                axis == Direction.Axis.X ? xOffset : 0,
+                yOffset,
+                axis == Direction.Axis.Z ? zOffset : 0);
+              var candidate = evaluatePortalBlueprint(level, base, axis, true);
+              if (candidate.isPresent() && (best == null || candidate.get().score() > best.score())) {
+                best = candidate.get();
+              }
+            }
+          }
+        }
+      }
+    }
+    return Optional.ofNullable(best);
+  }
+
+  private Optional<PortalBlueprint> findFreshPortalBlueprint(LocalPlayer player, Level level) {
+    PortalBlueprint best = null;
+    for (var axis : List.of(Direction.Axis.X, Direction.Axis.Z)) {
+      for (int dx = -6; dx <= 6; dx++) {
+        for (int dz = -6; dz <= 6; dz++) {
+          for (int dy = -1; dy <= 1; dy++) {
+            var base = player.blockPosition().offset(dx, dy, dz);
+            var candidate = evaluatePortalBlueprint(level, base, axis, false);
+            if (candidate.isPresent() && (best == null || candidate.get().score() > best.score())) {
+              best = candidate.get();
+            }
+          }
+        }
+      }
+    }
+    return Optional.ofNullable(best);
+  }
+
+  private Optional<PortalBlueprint> evaluatePortalBlueprint(Level level,
+                                                            BlockPos base,
+                                                            Direction.Axis axis,
+                                                            boolean requireExisting) {
+    var framePositions = new ArrayList<BlockPos>(14);
+    var interiorPositions = new ArrayList<BlockPos>(6);
+    var existingFrameBlocks = 0;
+    var missingFrameBlocks = 0;
+
+    for (int height = 0; height <= 4; height++) {
+      for (int width = 0; width <= 3; width++) {
+        var pos = axis == Direction.Axis.X ? base.offset(width, height, 0) : base.offset(0, height, width);
+        var state = level.getBlockState(pos);
+        var isFrame = width == 0 || width == 3 || height == 0 || height == 4;
+        if (isFrame) {
+          framePositions.add(pos.immutable());
+          if (state.getBlock() == Blocks.OBSIDIAN || state.getBlock() == Blocks.NETHER_PORTAL) {
+            existingFrameBlocks++;
+            continue;
+          }
+          if (state.canBeReplaced() || state.getBlock() == Blocks.FIRE) {
+            missingFrameBlocks++;
+            continue;
+          }
+          return Optional.empty();
+        }
+
+        interiorPositions.add(pos.immutable());
+        if (!(state.canBeReplaced() || state.getBlock() == Blocks.FIRE || state.getBlock() == Blocks.NETHER_PORTAL)) {
+          return Optional.empty();
+        }
+      }
+    }
+
+    if (requireExisting && existingFrameBlocks < 4) {
+      return Optional.empty();
+    }
+    if (missingFrameBlocks > AutomationInventory.countInventory(bot, "item:minecraft:obsidian")) {
+      return Optional.empty();
+    }
+
+    if (!requireExisting) {
+      for (int width = 0; width <= 3; width++) {
+        var supportPos = axis == Direction.Axis.X ? base.offset(width, -1, 0) : base.offset(0, -1, width);
+        if (!level.getBlockState(supportPos).isFaceSturdy(level, supportPos, Direction.UP)) {
+          return Optional.empty();
+        }
+      }
+    }
+
+    return Optional.of(new PortalBlueprint(base.immutable(), axis, List.copyOf(framePositions), List.copyOf(interiorPositions), existingFrameBlocks, missingFrameBlocks));
+  }
+
+  private Optional<BlockPlaceAgainstData> findPlaceAgainst(BlockPos target) {
+    var level = bot.minecraft().level;
+    if (level == null) {
+      return Optional.empty();
+    }
+
+    for (var face : BlockFace.VALUES) {
+      var supportPos = face.offset(target);
+      var supportState = level.getBlockState(supportPos);
+      if (supportState.canBeReplaced()) {
+        continue;
+      }
+
+      return Optional.of(new BlockPlaceAgainstData(SFVec3i.fromInt(supportPos), oppositeFace(face)));
+    }
+
+    return Optional.empty();
+  }
+
+  private BlockFace oppositeFace(BlockFace face) {
+    return switch (face) {
+      case NORTH -> BlockFace.SOUTH;
+      case SOUTH -> BlockFace.NORTH;
+      case EAST -> BlockFace.WEST;
+      case WEST -> BlockFace.EAST;
+      case TOP -> BlockFace.BOTTOM;
+      case BOTTOM -> BlockFace.TOP;
+    };
+  }
+
+  private boolean placeBlockAt(String requirementKey, BlockPos target) {
+    var player = bot.minecraft().player;
+    var gameMode = bot.minecraft().gameMode;
+    if (player == null || gameMode == null) {
+      return false;
+    }
+
+    if (!AutomationInventory.ensureHolding(bot, requirementKey)) {
+      return false;
+    }
+
+    var against = findPlaceAgainst(target);
+    if (against.isEmpty()) {
+      return false;
+    }
+
+    var interactPoint = against.get().blockFace().getMiddleOfFace(against.get().againstPos());
+    player.lookAt(EntityAnchorArgument.Anchor.EYES, interactPoint);
+    if (gameMode.useItemOn(player, InteractionHand.MAIN_HAND, player.level().clipIncludingBorder(new ClipContext(
+      player.getEyePosition(),
+      interactPoint,
+      ClipContext.Block.COLLIDER,
+      ClipContext.Fluid.NONE,
+      player
+    ))) instanceof InteractionResult.Success success && success.swingSource() == InteractionResult.SwingSource.CLIENT) {
+      player.swing(InteractionHand.MAIN_HAND);
+    }
+    return true;
   }
 
   private enum GoalMode {
@@ -664,19 +1021,33 @@ public final class AutomationController {
 
   private final class ExploreAction implements AutomationAction {
     private final String reason;
+    private final String purpose;
+    private final @Nullable Vec3 focus;
+    private final int spacing;
     private @Nullable CompletableFuture<Void> future;
+    private @Nullable Vec3 target;
 
     private ExploreAction(String reason) {
+      this(reason, reason, null, 96);
+    }
+
+    private ExploreAction(String reason, String purpose, @Nullable Vec3 focus, int spacing) {
       this.reason = reason;
+      this.purpose = purpose;
+      this.focus = focus;
+      this.spacing = spacing;
     }
 
     @Override
     public void start(AutomationController controller) {
       var player = bot.minecraft().player;
-      var random = ThreadLocalRandom.current();
-      var x = random.nextInt(player.blockPosition().getX() - 48, player.blockPosition().getX() + 49);
-      var z = random.nextInt(player.blockPosition().getZ() - 48, player.blockPosition().getZ() + 49);
-      future = PathExecutor.executePathfinding(bot, new XZGoal(x, z), new PathConstraintImpl(bot));
+      var level = bot.minecraft().level;
+      if (player == null || level == null) {
+        return;
+      }
+
+      target = team().assignExplorationTarget(bot, level.dimension(), purpose, focus != null ? focus : player.position(), spacing);
+      future = PathExecutor.executePathfinding(bot, new XZGoal((int) Math.floor(target.x), (int) Math.floor(target.z)), new PathConstraintImpl(bot));
     }
 
     @Override
@@ -842,6 +1213,191 @@ public final class AutomationController {
     }
   }
 
+  private final class FillBucketAction implements AutomationAction, PositionedAction {
+    private final BlockPos position;
+    private final String resultRequirementKey;
+    private final String label;
+    private @Nullable CompletableFuture<Void> future;
+    private int stage;
+    private long stageTick;
+
+    private FillBucketAction(BlockPos position, String resultRequirementKey, String label) {
+      this.position = position;
+      this.resultRequirementKey = resultRequirementKey;
+      this.label = label;
+    }
+
+    @Override
+    public void start(AutomationController controller) {
+      future = PathExecutor.executePathfinding(bot, new CloseToPosGoal(SFVec3i.fromInt(position), 2), new PathConstraintImpl(bot));
+      stage = 0;
+      stageTick = worldMemory.ticks();
+    }
+
+    @Override
+    public ActionResult poll(AutomationController controller) {
+      if (AutomationInventory.countInventory(bot, resultRequirementKey) > 0) {
+        return ActionResult.SUCCEEDED;
+      }
+
+      if (stage == 0) {
+        if (future == null || !future.isDone()) {
+          return ActionResult.RUNNING;
+        }
+        if (finishFuture(future) == ActionResult.FAILED) {
+          worldMemory.markUnreachable(position);
+          return ActionResult.FAILED;
+        }
+        if (!AutomationInventory.ensureHolding(bot, "item:minecraft:bucket")) {
+          return ActionResult.FAILED;
+        }
+        interactFluid(position);
+        stage = 1;
+        stageTick = worldMemory.ticks();
+        return ActionResult.RUNNING;
+      }
+
+      if (AutomationInventory.countInventory(bot, resultRequirementKey) > 0) {
+        return ActionResult.SUCCEEDED;
+      }
+
+      return worldMemory.ticks() - stageTick > 40 ? ActionResult.FAILED : ActionResult.RUNNING;
+    }
+
+    @Override
+    public String description() {
+      return label;
+    }
+
+    @Override
+    public BlockPos position() {
+      return position;
+    }
+  }
+
+  private final class BuildPortalAction implements AutomationAction, PositionedAction {
+    private final String label;
+    private @Nullable PortalBlueprint blueprint;
+    private @Nullable CompletableFuture<Void> future;
+    private @Nullable BlockPos currentTarget;
+    private int index;
+    private int stage;
+    private long stageTick;
+
+    private BuildPortalAction(String label) {
+      this.label = label;
+    }
+
+    @Override
+    public void start(AutomationController controller) {
+      blueprint = findPortalBlueprint().orElse(null);
+      index = 0;
+      stage = 0;
+      stageTick = worldMemory.ticks();
+    }
+
+    @Override
+    public ActionResult poll(AutomationController controller) {
+      var level = bot.minecraft().level;
+      if (level == null || blueprint == null) {
+        return ActionResult.FAILED;
+      }
+
+      if (findAnyPortal(level.dimension()).isPresent()) {
+        return ActionResult.SUCCEEDED;
+      }
+
+      var missingFrameBlocks = blueprint.missingFrameBlocks(level);
+      if (index >= missingFrameBlocks.size()) {
+        return ignitePortal(level);
+      }
+
+      if (stage == 0) {
+        currentTarget = missingFrameBlocks.get(index);
+        future = PathExecutor.executePathfinding(bot, new CloseToPosGoal(SFVec3i.fromInt(currentTarget), 2), new PathConstraintImpl(bot));
+        stage = 1;
+        stageTick = worldMemory.ticks();
+        return ActionResult.RUNNING;
+      }
+
+      if (stage == 1) {
+        if (future == null || !future.isDone()) {
+          return ActionResult.RUNNING;
+        }
+        if (finishFuture(future) == ActionResult.FAILED || currentTarget == null) {
+          worldMemory.markUnreachable(blueprint.base());
+          return ActionResult.FAILED;
+        }
+        if (level.getBlockState(currentTarget).getBlock() == Blocks.OBSIDIAN) {
+          index++;
+          stage = 0;
+          return ActionResult.RUNNING;
+        }
+        if (!placeBlockAt("item:minecraft:obsidian", currentTarget)) {
+          return ActionResult.FAILED;
+        }
+        stage = 2;
+        stageTick = worldMemory.ticks();
+        return ActionResult.RUNNING;
+      }
+
+      if (stage == 2) {
+        if (currentTarget != null && level.getBlockState(currentTarget).getBlock() == Blocks.OBSIDIAN) {
+          index++;
+          stage = 0;
+          return ActionResult.RUNNING;
+        }
+        if (worldMemory.ticks() - stageTick > 20) {
+          return ActionResult.FAILED;
+        }
+      }
+
+      return ActionResult.RUNNING;
+    }
+
+    private ActionResult ignitePortal(Level level) {
+      if (blueprint == null) {
+        return ActionResult.FAILED;
+      }
+
+      var ignitionTarget = blueprint.interior().getFirst();
+      if (stage < 3) {
+        future = PathExecutor.executePathfinding(bot, new CloseToPosGoal(SFVec3i.fromInt(ignitionTarget), 2), new PathConstraintImpl(bot));
+        stage = 3;
+        return ActionResult.RUNNING;
+      }
+
+      if (stage == 3) {
+        if (future == null || !future.isDone()) {
+          return ActionResult.RUNNING;
+        }
+        if (finishFuture(future) == ActionResult.FAILED || !AutomationInventory.ensureHolding(bot, "item:minecraft:flint_and_steel")) {
+          return ActionResult.FAILED;
+        }
+        interactBlock(ignitionTarget);
+        stage = 4;
+        stageTick = worldMemory.ticks();
+        return ActionResult.RUNNING;
+      }
+
+      if (blueprint.hasActivePortal(level)) {
+        return ActionResult.SUCCEEDED;
+      }
+
+      return worldMemory.ticks() - stageTick > 40 ? ActionResult.FAILED : ActionResult.RUNNING;
+    }
+
+    @Override
+    public String description() {
+      return label;
+    }
+
+    @Override
+    public BlockPos position() {
+      return blueprint != null ? blueprint.base() : BlockPos.ZERO;
+    }
+  }
+
   private final class InspectContainerAction implements AutomationAction, PositionedAction {
     private final BlockPos position;
     private int stage;
@@ -973,7 +1529,7 @@ public final class AutomationController {
         }
         worldMemory.rememberContainerContents(position, menu);
         player.closeContainer();
-        return AutomationInventory.countInventory(bot, requirementKey) > 0 ? ActionResult.SUCCEEDED : ActionResult.FAILED;
+        return AutomationInventory.countInventory(bot, requirementKey) >= neededCount ? ActionResult.SUCCEEDED : ActionResult.FAILED;
       }
 
       return ActionResult.RUNNING;
@@ -1273,9 +1829,10 @@ public final class AutomationController {
       }
 
       if (stage == 0) {
+        var followDistance = shouldUseRanged(entity.get()) ? 14 : 2;
         future = PathExecutor.executePathfinding(
           bot,
-          (DynamicGoalScorer) () -> new CloseToPosGoal(SFVec3i.fromInt(entity.get().blockPosition()), 2),
+          (DynamicGoalScorer) () -> new CloseToPosGoal(SFVec3i.fromInt(entity.get().blockPosition()), followDistance),
           new PathConstraintImpl(bot)
         );
         stage = 1;
@@ -1290,7 +1847,9 @@ public final class AutomationController {
           stage = 0;
           return ActionResult.RUNNING;
         }
-        bot.botControl().replace(new AttackEntityTask(entityId, 120));
+        bot.botControl().replace(shouldUseRanged(entity.get())
+          ? new RangedAttackTask(entityId, entity.get().getType() == EntityType.ENDER_DRAGON ? 240 : 160)
+          : new AttackEntityTask(entityId, 120));
         stage = 2;
         return ActionResult.RUNNING;
       }
@@ -1310,6 +1869,17 @@ public final class AutomationController {
     @Override
     public String description() {
       return label;
+    }
+
+    private boolean shouldUseRanged(Entity entity) {
+      if (!AutomationInventory.hasRangedWeapon(bot)) {
+        return false;
+      }
+
+      return entity.getType() == EntityType.ENDER_DRAGON
+        || entity.getType() == EntityType.END_CRYSTAL
+        || entity.position().distanceTo(bot.minecraft().player.position()) > 4.0
+        || Math.abs(entity.getY() - bot.minecraft().player.getY()) > 2.0;
     }
   }
 
@@ -1339,6 +1909,7 @@ public final class AutomationController {
       var directionTarget = findEyeDirectionTarget(player);
       if (directionTarget.isPresent()) {
         lastEyeDirectionTarget = directionTarget.get();
+        team().reportEyeSample(bot, player.position(), directionTarget.get().subtract(player.position()));
         return ActionResult.SUCCEEDED;
       }
 
@@ -1359,6 +1930,7 @@ public final class AutomationController {
     private final BlockPos framePos;
     private int stage;
     private @Nullable CompletableFuture<Void> future;
+    private long stageTick;
 
     private FillPortalFrameAction(BlockPos framePos) {
       this.framePos = framePos;
@@ -1368,6 +1940,7 @@ public final class AutomationController {
     public void start(AutomationController controller) {
       future = PathExecutor.executePathfinding(bot, new CloseToPosGoal(SFVec3i.fromInt(framePos), 2), new PathConstraintImpl(bot));
       stage = 0;
+      stageTick = worldMemory.ticks();
     }
 
     @Override
@@ -1383,6 +1956,7 @@ public final class AutomationController {
       if (stage == 0) {
         interactBlock(framePos);
         stage = 1;
+        stageTick = worldMemory.ticks();
         return ActionResult.RUNNING;
       }
 
@@ -1393,7 +1967,7 @@ public final class AutomationController {
       if (bot.minecraft().level.getBlockState(framePos.below()).getBlock() == Blocks.END_PORTAL) {
         return ActionResult.SUCCEEDED;
       }
-      return worldMemory.ticks() - lastProgressTick > 40 ? ActionResult.FAILED : ActionResult.RUNNING;
+      return worldMemory.ticks() - stageTick > 40 ? ActionResult.FAILED : ActionResult.RUNNING;
     }
 
     @Override
@@ -1432,8 +2006,8 @@ public final class AutomationController {
       }
 
       if (portalPos == null) {
-        portalPos = worldMemory.findNearestBlock(bot, state -> state.getBlock() == portalBlock)
-          .map(AutomationWorldMemory.RememberedBlock::pos)
+        portalPos = (portalBlock == Blocks.NETHER_PORTAL ? findAnyPortal(level.dimension()) : worldMemory.findNearestBlock(bot, state -> state.getBlock() == portalBlock)
+          .map(AutomationWorldMemory.RememberedBlock::pos))
           .orElse(null);
         if (portalPos == null) {
           return ActionResult.FAILED;
@@ -1482,6 +2056,14 @@ public final class AutomationController {
   }
 
   private void interactBlock(BlockPos pos) {
+    interactBlock(pos, ClipContext.Fluid.NONE);
+  }
+
+  private void interactFluid(BlockPos pos) {
+    interactBlock(pos, ClipContext.Fluid.SOURCE_ONLY);
+  }
+
+  private void interactBlock(BlockPos pos, ClipContext.Fluid fluidMode) {
     var player = bot.minecraft().player;
     var gameMode = bot.minecraft().gameMode;
     if (player == null || gameMode == null) {
@@ -1494,7 +2076,7 @@ public final class AutomationController {
       player.getEyePosition(),
       target,
       ClipContext.Block.COLLIDER,
-      ClipContext.Fluid.NONE,
+      fluidMode,
       player
     ))) instanceof InteractionResult.Success success
       && success.swingSource() == InteractionResult.SwingSource.CLIENT) {
@@ -1503,26 +2085,35 @@ public final class AutomationController {
   }
 
   private void placeBlock(String requirementKey, BlockPos placePos) {
-    var player = bot.minecraft().player;
-    var gameMode = bot.minecraft().gameMode;
-    if (player == null || gameMode == null || !AutomationInventory.ensureHolding(bot, requirementKey)) {
-      return;
-    }
-
-    var support = placePos.below();
-    var target = support.getCenter().add(0.0, 0.5, 0.0);
-    player.lookAt(EntityAnchorArgument.Anchor.EYES, placePos.getCenter());
-    gameMode.useItemOn(player, InteractionHand.MAIN_HAND, player.level().clipIncludingBorder(new ClipContext(
-      player.getEyePosition(),
-      target,
-      ClipContext.Block.COLLIDER,
-      ClipContext.Fluid.NONE,
-      player
-    )));
+    placeBlockAt(requirementKey, placePos);
   }
 
   private boolean hasEye(BlockState state) {
     return state.hasProperty(EndPortalFrameBlock.HAS_EYE) && state.getValue(EndPortalFrameBlock.HAS_EYE);
+  }
+
+  private record PortalBlueprint(BlockPos base,
+                                 Direction.Axis axis,
+                                 List<BlockPos> frame,
+                                 List<BlockPos> interior,
+                                 int existingFrameBlocks,
+                                 int missingFrameBlocks) {
+    private List<BlockPos> missingFrameBlocks(Level level) {
+      return frame.stream()
+        .filter(pos -> level.getBlockState(pos).getBlock() != Blocks.OBSIDIAN)
+        .sorted(Comparator.comparingInt((BlockPos pos) -> pos.getY())
+          .thenComparingInt(pos -> pos.getX())
+          .thenComparingInt(pos -> pos.getZ()))
+        .toList();
+    }
+
+    private boolean hasActivePortal(Level level) {
+      return interior.stream().anyMatch(pos -> level.getBlockState(pos).getBlock() == Blocks.NETHER_PORTAL);
+    }
+
+    private int score() {
+      return existingFrameBlocks * 10 - missingFrameBlocks;
+    }
   }
 
   private static final class AttackEntityTask implements ControlTask {
@@ -1590,6 +2181,93 @@ public final class AutomationController {
     @Override
     public String description() {
       return "Automation attack";
+    }
+  }
+
+  private static final class RangedAttackTask implements ControlTask {
+    private final java.util.UUID entityId;
+    private final int maxTicks;
+    private int ticks;
+    private int chargeTicks;
+    private boolean done;
+
+    private RangedAttackTask(java.util.UUID entityId, int maxTicks) {
+      this.entityId = entityId;
+      this.maxTicks = maxTicks;
+    }
+
+    @Override
+    public void tick() {
+      var bot = BotConnection.current();
+      var player = bot.minecraft().player;
+      var gameMode = bot.minecraft().gameMode;
+      if (player == null || gameMode == null || !AutomationInventory.ensureHolding(bot, "item:minecraft:bow")) {
+        done = true;
+        return;
+      }
+
+      Entity target = null;
+      for (var entity : bot.minecraft().level.entitiesForRendering()) {
+        if (entity.getUUID().equals(entityId)) {
+          target = entity;
+          break;
+        }
+      }
+
+      if (target == null || !target.isAlive() || AutomationInventory.countInventory(bot, "item:minecraft:arrow") <= 0) {
+        if (player.isUsingItem()) {
+          player.releaseUsingItem();
+        }
+        done = true;
+        return;
+      }
+
+      var visiblePoint = Optional.ofNullable(KillAura.getEntityVisiblePoint(bot, target)).orElse(target.getEyePosition());
+      var distance = visiblePoint.distanceTo(player.getEyePosition());
+      player.lookAt(EntityAnchorArgument.Anchor.EYES, visiblePoint);
+
+      bot.controlState().resetAll();
+      if (distance > 16.0) {
+        bot.controlState().up(true);
+        bot.controlState().sprint(true);
+      }
+
+      if (!player.isUsingItem()) {
+        gameMode.useItem(player, InteractionHand.MAIN_HAND);
+        chargeTicks = 0;
+      } else if (++chargeTicks >= (target.getType() == EntityType.END_CRYSTAL ? 10 : 20)) {
+        player.releaseUsingItem();
+        chargeTicks = 0;
+      }
+
+      if (++ticks >= maxTicks) {
+        if (player.isUsingItem()) {
+          player.releaseUsingItem();
+        }
+        bot.controlState().resetAll();
+        done = true;
+      }
+    }
+
+    @Override
+    public boolean isDone() {
+      return done;
+    }
+
+    @Override
+    public ControlPriority priority() {
+      return ControlPriority.HIGH;
+    }
+
+    @Override
+    public void onStopped(com.soulfiremc.server.bot.ControlStopReason reason, @Nullable Throwable cause) {
+      BotConnection.currentOptional().ifPresent(bot -> {
+        var player = bot.minecraft().player;
+        if (player != null && player.isUsingItem()) {
+          player.releaseUsingItem();
+        }
+        bot.controlState().resetAll();
+      });
     }
   }
 

@@ -97,6 +97,10 @@ public final class AutomationRequirements {
       case "eye", "eyes" -> itemKey(Items.ENDER_EYE);
       case "rod", "rods" -> itemKey(Items.BLAZE_ROD);
       case "powder" -> itemKey(Items.BLAZE_POWDER);
+      case "arrow", "arrows" -> itemKey(Items.ARROW);
+      case "bow" -> itemKey(Items.BOW);
+      case "shield" -> itemKey(Items.SHIELD);
+      case "bucket" -> itemKey(Items.BUCKET);
       default -> {
         var identifier = normalized.contains(":") ? normalized : "minecraft:" + normalized;
         var item = BuiltInRegistries.ITEM.getValue(Identifier.parse(identifier));
@@ -174,6 +178,10 @@ public final class AutomationRequirements {
     aliases.add("pearls");
     aliases.add("eyes");
     aliases.add("rods");
+    aliases.add("arrows");
+    aliases.add("bow");
+    aliases.add("shield");
+    aliases.add("bucket");
     return aliases;
   }
 }

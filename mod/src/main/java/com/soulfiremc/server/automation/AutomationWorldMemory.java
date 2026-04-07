@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Predicate;
+import java.util.Collection;
 
 public final class AutomationWorldMemory {
   private static final int BLOCK_SCAN_RADIUS = 32;
@@ -240,6 +241,22 @@ public final class AutomationWorldMemory {
     return ticks;
   }
 
+  public Collection<RememberedBlock> rememberedBlocks() {
+    return java.util.List.copyOf(blocks.values());
+  }
+
+  public Collection<RememberedContainer> rememberedContainers() {
+    return java.util.List.copyOf(containers.values());
+  }
+
+  public Collection<RememberedEntity> rememberedEntities() {
+    return java.util.List.copyOf(entities.values());
+  }
+
+  public Collection<RememberedItem> rememberedDroppedItems() {
+    return java.util.List.copyOf(droppedItems.values());
+  }
+
   public static boolean isInterestingBlock(BlockState state) {
     var block = state.getBlock();
     return state.is(BlockTags.LOGS)
@@ -255,6 +272,9 @@ public final class AutomationWorldMemory {
       || block == Blocks.GRAVEL
       || block == Blocks.OBSIDIAN
       || block == Blocks.CRYING_OBSIDIAN
+      || block == Blocks.GOLD_BLOCK
+      || block == Blocks.NETHERRACK
+      || block == Blocks.MAGMA_BLOCK
       || block == Blocks.CRAFTING_TABLE
       || block == Blocks.FURNACE
       || block == Blocks.BLAST_FURNACE
@@ -263,6 +283,10 @@ public final class AutomationWorldMemory {
       || block == Blocks.TRAPPED_CHEST
       || block == Blocks.BARREL
       || block == Blocks.NETHER_PORTAL
+      || block == Blocks.NETHER_BRICKS
+      || block == Blocks.NETHER_BRICK_FENCE
+      || block == Blocks.NETHER_BRICK_STAIRS
+      || block == Blocks.SPAWNER
       || block == Blocks.END_PORTAL_FRAME
       || block == Blocks.END_PORTAL
       || block == Blocks.LAVA
