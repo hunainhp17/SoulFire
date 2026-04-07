@@ -2,6 +2,8 @@
 
 This document is intended to help developers get started with the project and learn how to learn the tools used.
 
+- [Automation roadmap](docs/automation-roadmap.md): maintainer backlog for SoulFire-native automation parity, operator controls, and reliable parallel beat-game runs.
+
 ## Protocol Sniffing
 
 To learn about how some packets are structured and their data works, you need a MITM proxy. This is a proxy that sits
