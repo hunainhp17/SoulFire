@@ -65,6 +65,7 @@ public final class RPCServer {
   @Getter
   private final ScriptServiceImpl scriptService;
   private final MCPService mcpService;
+  private final OpenApiService openApiService;
 
   public RPCServer(
     String host,
@@ -74,6 +75,7 @@ public final class RPCServer {
     this.port = port;
     this.scriptService = new ScriptServiceImpl(soulFireServer);
     this.mcpService = new MCPService(soulFireServer);
+    this.openApiService = new OpenApiService(soulFireServer);
 
     var meterRegistry = PrometheusMeterRegistries.defaultRegistry();
     var corsBuilder =
@@ -165,6 +167,8 @@ public final class RPCServer {
           MetricCollectingService.newDecorator(GrpcMeterIdPrefixFunction.of("soulfire")))
         .service("/health", HealthCheckService.builder().build())
         .service("/", new RedirectService("/docs"))
+        .service("/openapi", new RedirectService("/openapi.json"))
+        .service("/openapi.json", openApiService)
         .service("/mcp", mcpService.getTransportProvider().httpService())
         .serviceUnder("/webdav/", new RewriteBlocker(TomcatService.of(newWebDAVContext(soulFireServer))))
         .serviceUnder("/docs", DocService.builder()
