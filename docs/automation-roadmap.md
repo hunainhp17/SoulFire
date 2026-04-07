@@ -18,7 +18,7 @@ SoulFire now has:
 - Item acquisition, crafting, smelting, looting, bartering, and beat-game phase orchestration.
 - Shared world memory, shared exploration claims, stronghold estimates, and team status reporting.
 - Shared coordination inspection and reset hooks over CLI, gRPC, and MCP.
-- Settings-backed role overrides and objective overrides exposed over CLI, gRPC, and MCP.
+- Settings-backed role overrides, objective overrides, and manual claim release exposed over CLI, gRPC, and MCP.
 - Native portal construction and portal casting paths.
 - Basic end-fight targeting, ranged attacks, and death/stall recovery hooks.
 
@@ -32,7 +32,7 @@ These are worth stating directly based on the current repository state:
 - A first `AutomationSettings` page now exists, but it still only covers an initial execution, coordination, and observability slice.
 - A first automation proto, gRPC, and MCP surface now exists for state snapshots, coordination snapshots, and core control actions, but it is still far from complete.
 - Team collaboration is now configurable, including structure-intel and target-claim sharing, but it is still much narrower than the full coordination model described below.
-- Operator overrides now exist for forcing roles and objectives, but not yet for claims, targets, phases, or subteams.
+- Operator overrides now exist for forcing roles and objectives plus releasing claims, but not yet for claim creation, targets, phases, or subteams.
 - GUI automation controls and dashboards still live outside this repository and are not yet implemented end-to-end.
 
 ## P0: reliability for 10 parallel beat-game bots
@@ -171,7 +171,7 @@ The current team coordinator is useful, but still too fixed and too implicit.
 ### Team strategy
 
 - Replace static role assignment based on bot ordering with configurable role policy.
-- Settings-backed role overrides and objective overrides now exist, but they are still coarse manual controls rather than a full operator strategy layer.
+- Settings-backed role overrides, objective overrides, and claim-release controls now exist, but they are still coarse manual controls rather than a full operator strategy layer.
 - Support "independent runners" mode versus "fully collaborative team" mode.
 - Support subteams, for example separate nether and overworld squads.
 - Allow dynamic reassignment when bots die, disconnect, or finish their phase.
@@ -198,7 +198,7 @@ The current team coordinator is useful, but still too fixed and too implicit.
 - Expand the existing automation settings page beyond the current first execution and coordination slice.
 - Keep the simple on/off collaboration toggle, but continue adding more granular collaboration controls underneath it.
 - Shared structure-intel and shared target-claim toggles now exist; shared looting, shared handoffs, and shared stash policies still do not.
-- Objective override and per-bot role override now exist; subteam-level overrides and per-phase overrides still do not.
+- Objective override, per-bot role override, and manual claim release now exist; subteam-level overrides and per-phase overrides still do not.
 - Add toggles for role specialization, shared looting, and shared End entry policy beyond the current boolean throttle.
 - Add caps for how many bots may enter the nether, stronghold, and End at once.
 - Add settings for shared exploration spacing and structure claim lease time.
@@ -252,10 +252,10 @@ These key names are illustrative rather than final, but the product needs this l
 ### Commands
 
 - Expand the automation command set beyond `beat`, `get`, `status`, `teamstatus`, and `stop`.
-- `pause`, `resume`, queue inspection, per-bot memory reset, coordination inspection, coordination reset, granular collaboration toggles, and role/objective overrides now exist.
+- `pause`, `resume`, queue inspection, per-bot memory reset, coordination inspection, claim release, coordination reset, granular collaboration toggles, and role/objective overrides now exist.
 - Add `restart-phase` and `abort-phase`.
-- Manual role/objective commands now exist.
-- Add commands to claim or release targets manually.
+- Manual role/objective commands and manual claim-release commands now exist.
+- Add commands to claim targets manually, retarget existing claims, or release claims by richer selectors than exact key or selected-bot ownership.
 - Expand queue inspection beyond the current requirement list into richer planner-decision visibility.
 - Expand memory inspection beyond the current per-bot remembered-state dump and per-bot reset flow.
 - Add JSON or structured export modes for queue, memory, and coordination inspection instead of text-only CLI output.
@@ -273,12 +273,12 @@ These key names are illustrative rather than final, but the product needs this l
 - Add automation status streaming and event streaming.
 - Expose the automation phase, current action, planner queue, role, objective, and recovery state over RPC.
 - Team summaries, claims, shared block hints, eye samples, and per-bot memory snapshots now exist as point-in-time RPCs.
-- Objective override and per-bot role override RPCs now exist as first-class automation operations.
+- Objective override, per-bot role override, and manual claim-release RPCs now exist as first-class automation operations.
 - Expand the new automation MCP tooling so external agents can inspect and control automation directly beyond the first action set.
 - Add versioned proto messages for automation settings and telemetry.
 - Add automation-specific audit log events.
 - Add server-pushed subscriptions for queue changes, phase changes, recoveries, and coordination-claim churn.
-- Add explicit operator override RPCs for claims, roles, objectives, and target abandonment.
+- Add explicit operator override RPCs for claim creation/retargeting, roles, objectives, phase forcing, and target abandonment.
 
 ### Suggested automation API surface
 
@@ -480,8 +480,8 @@ If the goal is "10 SoulFire bots reliably beat the game in parallel", the highes
 These are worth calling out explicitly because they are easy to overlook:
 
 - The current automation proto/gRPC/MCP surface does not yet include streams, planner traces, force actions, or run-report export.
-- Shared-memory and claim inspection now exist, but historical timelines, subscriptions, and manual claim editing still do not.
-- Role/objective overrides now exist, but manual claim edits, phase overrides, and force-target workflows still do not.
+- Shared-memory and claim inspection plus manual claim release now exist, but historical timelines, subscriptions, and manual claim editing still do not.
+- Role/objective overrides and claim release now exist, but manual claim creation/retargeting, phase overrides, and force-target workflows still do not.
 - No dedicated GUI client automation dashboard exists in this repository.
 - No dedicated automation event stream or run-report export exists yet.
 - No automation-specific permission model exists yet.

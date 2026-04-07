@@ -538,6 +538,32 @@ public final class MCPService {
             .setInstanceId(str(args, "instance_id"))
             .build(), o)))));
 
+    tools.add(tool("release_automation_claim",
+      "Release one shared automation claim by exact key and return the updated coordination snapshot.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "key", prop("string", "Exact claim key from coordination state inspection")),
+      List.of("instance_id", "key"),
+      authed((exchange, args) ->
+        grpc(o -> automationService.releaseAutomationClaim(
+          ReleaseAutomationClaimRequest.newBuilder()
+            .setInstanceId(str(args, "instance_id"))
+            .setKey(str(args, "key"))
+            .build(), o)))));
+
+    tools.add(tool("release_automation_bot_claims",
+      "Release shared automation claims owned by connected bots in an instance. Omit bot_ids to target all connected bots.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "bot_ids", arrayProp("Optional list of bot UUIDs. Omit to target all connected bots.")),
+      List.of("instance_id"),
+      authed((exchange, args) -> {
+        var builder = ReleaseAutomationBotClaimsRequest.newBuilder()
+          .setInstanceId(str(args, "instance_id"));
+        ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
+        return grpc(o -> automationService.releaseAutomationBotClaims(builder.build(), o));
+      })));
+
     tools.add(tool("set_bot_movement",
       "Control bot movement (WASD keys, jump, sneak, sprint). Only set the fields you want to change.",
       Map.of(

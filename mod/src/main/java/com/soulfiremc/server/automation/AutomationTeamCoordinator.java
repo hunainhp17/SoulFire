@@ -128,6 +128,17 @@ public final class AutomationTeamCoordinator {
     claims.entrySet().removeIf(entry -> entry.getValue().owner().equals(owner));
   }
 
+  public synchronized int releaseClaimsOwnedBy(UUID ownerBotId) {
+    var before = claims.size();
+    claims.entrySet().removeIf(entry -> entry.getValue().owner().equals(ownerBotId));
+    return before - claims.size();
+  }
+
+  public synchronized boolean releaseClaim(String key) {
+    prune(System.currentTimeMillis());
+    return claims.remove(key) != null;
+  }
+
   public synchronized void releaseBot(BotConnection bot) {
     releaseClaims(bot);
     botSnapshots.remove(bot.accountProfileId());

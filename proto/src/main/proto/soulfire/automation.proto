@@ -316,6 +316,26 @@ message ResetAutomationCoordinationStateResponse {
   AutomationCoordinationState state = 1;
 }
 
+message ReleaseAutomationClaimRequest {
+  string instance_id = 1 [(google.api.field_behavior) = REQUIRED, (soulfire.v1.api_field).format = "uuid"];
+  string key = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message ReleaseAutomationClaimResponse {
+  bool released = 1;
+  AutomationCoordinationState state = 2;
+}
+
+message ReleaseAutomationBotClaimsRequest {
+  string instance_id = 1 [(google.api.field_behavior) = REQUIRED, (soulfire.v1.api_field).format = "uuid"];
+  repeated string bot_ids = 2 [(soulfire.v1.api_field).format = "uuid"];
+}
+
+message ReleaseAutomationBotClaimsResponse {
+  repeated AutomationBotActionResult results = 1;
+  AutomationCoordinationState state = 2;
+}
+
 message ApplyAutomationPresetRequest {
   string instance_id = 1 [(google.api.field_behavior) = REQUIRED, (soulfire.v1.api_field).format = "uuid"];
   repeated string bot_ids = 2 [(soulfire.v1.api_field).format = "uuid"];
@@ -576,6 +596,32 @@ service AutomationService {
       permissions: "INSTANCE_COMMAND_EXECUTION"
       scope: "instance"
       side_effects: "Clears shared automation claims, shared structure intelligence, and eye samples for the instance."
+    };
+  }
+
+  rpc ReleaseAutomationClaim (ReleaseAutomationClaimRequest) returns (ReleaseAutomationClaimResponse) {
+    option (google.api.http) = {
+      post: "/v1/instances/{instance_id}/automation:releaseClaim"
+      body: "*"
+    };
+    option (soulfire.v1.api_method) = {
+      display_name: "Release automation claim"
+      permissions: "INSTANCE_COMMAND_EXECUTION"
+      scope: "instance"
+      side_effects: "Releases one shared automation claim by exact key."
+    };
+  }
+
+  rpc ReleaseAutomationBotClaims (ReleaseAutomationBotClaimsRequest) returns (ReleaseAutomationBotClaimsResponse) {
+    option (google.api.http) = {
+      post: "/v1/instances/{instance_id}/automation:releaseBotClaims"
+      body: "*"
+    };
+    option (soulfire.v1.api_method) = {
+      display_name: "Release automation bot claims"
+      permissions: "INSTANCE_COMMAND_EXECUTION"
+      scope: "instance.bot"
+      side_effects: "Releases shared automation claims owned by the selected connected bots."
     };
   }
 }

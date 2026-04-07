@@ -373,6 +373,33 @@ public final class AutomationCommand {
         .executes(help(
           "Shows shared automation coordination state with a configurable entry cap per category",
           c -> showCoordinationStatus(c, IntegerArgumentType.getInteger(c, "maxEntries"))))));
+    root.then(literal("releaseclaim")
+      .then(argument("key", StringArgumentType.greedyString())
+        .executes(help(
+          "Releases one shared automation claim by exact key for the visible instances",
+          c -> {
+            var key = StringArgumentType.getString(c, "key");
+            return forEveryInstance(c, instance -> {
+              var released = instance.automationCoordinator().releaseClaim(key);
+              instance.addAuditLog(c.getSource().source(), AuditLogType.AUTOMATION_RELEASE_CLAIMS,
+                "claim-key=%s released=%s".formatted(key, released));
+              c.getSource().source().sendInfo("%s: claim %s %s".formatted(
+                instance.friendlyNameCache().get(),
+                key,
+                released ? "released" : "not found"));
+              return Command.SINGLE_SUCCESS;
+            });
+          }))));
+    root.then(literal("releasebotclaims")
+      .executes(help(
+        "Releases shared automation claims owned by the selected bots",
+        c -> forEveryBot(c, bot -> {
+          var released = bot.instanceManager().automationCoordinator().releaseClaimsOwnedBy(bot.accountProfileId());
+          bot.instanceManager().addAuditLog(c.getSource().source(), AuditLogType.AUTOMATION_RELEASE_CLAIMS,
+            "bot=%s released=%d".formatted(bot.accountName(), released));
+          c.getSource().source().sendInfo("%s: released %d automation claims".formatted(bot.accountName(), released));
+          return Command.SINGLE_SUCCESS;
+        }))));
     root.then(literal("resetcoordination")
       .executes(help(
         "Clears shared automation claims, shared structure intelligence, and eye samples for the visible instances",

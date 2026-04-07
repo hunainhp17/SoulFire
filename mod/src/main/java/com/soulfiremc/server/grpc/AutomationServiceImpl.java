@@ -429,6 +429,63 @@ public final class AutomationServiceImpl extends AutomationServiceGrpc.Automatio
     }
   }
 
+  @Override
+  public void releaseAutomationClaim(ReleaseAutomationClaimRequest request,
+                                     StreamObserver<ReleaseAutomationClaimResponse> responseObserver) {
+    var instanceId = parseUuid(request.getInstanceId(), "instance_id");
+    var user = ServerRPCConstants.USER_CONTEXT_KEY.get();
+    user.hasPermissionOrThrow(PermissionContext.instance(InstancePermission.INSTANCE_COMMAND_EXECUTION, instanceId));
+
+    try {
+      var instance = requireInstance(instanceId);
+      var released = instance.automationCoordinator().releaseClaim(request.getKey());
+      instance.addAuditLog(user, AuditLogType.AUTOMATION_RELEASE_CLAIMS,
+        "claim-key=%s released=%s".formatted(request.getKey(), released));
+
+      responseObserver.onNext(ReleaseAutomationClaimResponse.newBuilder()
+        .setReleased(released)
+        .setState(buildCoordinationState(instance, 8))
+        .build());
+      responseObserver.onCompleted();
+    } catch (Throwable t) {
+      log.error("Error releasing automation claim", t);
+      throw statusFromThrowable(t);
+    }
+  }
+
+  @Override
+  public void releaseAutomationBotClaims(ReleaseAutomationBotClaimsRequest request,
+                                         StreamObserver<ReleaseAutomationBotClaimsResponse> responseObserver) {
+    var instanceId = parseUuid(request.getInstanceId(), "instance_id");
+    ServerRPCConstants.USER_CONTEXT_KEY.get().hasPermissionOrThrow(PermissionContext.instance(InstancePermission.INSTANCE_COMMAND_EXECUTION, instanceId));
+
+    try {
+      var instance = requireInstance(instanceId);
+      var targets = targetConnectedBots(instance, request.getBotIdsList());
+      if (targets.results().isEmpty() && targets.validBots().isEmpty()) {
+        throw Status.FAILED_PRECONDITION.withDescription("No connected bots matched the request").asRuntimeException();
+      }
+
+      var results = new ArrayList<AutomationBotActionResult>();
+      results.addAll(targets.results());
+      for (var bot : targets.validBots()) {
+        var released = instance.automationCoordinator().releaseClaimsOwnedBy(bot.accountProfileId());
+        instance.addAuditLog(ServerRPCConstants.USER_CONTEXT_KEY.get(), AuditLogType.AUTOMATION_RELEASE_CLAIMS,
+          "bot=%s released=%d".formatted(bot.accountName(), released));
+        results.add(successResult(bot, released == 1 ? "released 1 claim" : "released %d claims".formatted(released)));
+      }
+
+      responseObserver.onNext(ReleaseAutomationBotClaimsResponse.newBuilder()
+        .addAllResults(results)
+        .setState(buildCoordinationState(instance, 8))
+        .build());
+      responseObserver.onCompleted();
+    } catch (Throwable t) {
+      log.error("Error releasing automation bot claims", t);
+      throw statusFromThrowable(t);
+    }
+  }
+
   private void runBotAction(String instanceIdRaw,
                             List<String> botIds,
                             InstancePermission permission,

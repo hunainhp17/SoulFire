@@ -73,6 +73,10 @@ Current `automation` command surface:
   Clears remembered automation world state for the selected bots and forces replanning.
 - `automation coordinationstatus [maxEntries]`
   Shows capped shared coordination state for the visible instances, including shared claims, shared structure hints, eye samples, and team requirement counts.
+- `automation releaseclaim <key>`
+  Releases one shared automation claim by its exact claim key for the visible instances.
+- `automation releasebotclaims`
+  Releases all shared automation claims currently owned by the selected bots.
 - `automation resetcoordination`
   Clears shared automation claims, shared structure hints, and shared eye samples for the visible instances.
 - `automation status`
@@ -120,6 +124,10 @@ Current gRPC RPCs:
   Forces or clears per-bot automation role overrides for selected configured bots.
 - `ResetAutomationMemory`
   Clears remembered automation world state for the selected connected bots and forces replanning.
+- `ReleaseAutomationClaim`
+  Releases one shared automation claim by exact key for the instance.
+- `ReleaseAutomationBotClaims`
+  Releases all shared automation claims owned by the selected connected bots.
 - `ResetAutomationCoordinationState`
   Clears shared automation claims, shared structure hints, and eye samples for the instance.
 
@@ -141,6 +149,8 @@ Matching MCP tools are also available:
 - `set_automation_shared_claims`
 - `set_automation_role_override`
 - `reset_automation_memory`
+- `release_automation_claim`
+- `release_automation_bot_claims`
 - `reset_automation_coordination_state`
 
 ## Current behavior notes
@@ -159,6 +169,7 @@ Matching MCP tools are also available:
 - Requirement queues are now exposed over both CLI and gRPC/MCP state snapshots.
 - Per-bot automation memory can now be inspected and reset from both the CLI and the dedicated automation API.
 - Shared coordination state can now be inspected and reset from both the CLI and the dedicated automation API.
+- Shared coordination claims can now be released manually, either by exact claim key or by releasing all claims owned by selected bots.
 
 ## Still missing
 
@@ -167,7 +178,7 @@ This is not the finished automation surface. Major missing pieces are still trac
 - GUI dashboards and operator controls
 - richer settings coverage and presets
 - automation event streams, planner traces, and run-report export
-- richer operator overrides such as manual claim release, force-target, and force-phase controls
-- manual coordination edits such as releasing individual claims or editing shared structure hints
+- richer operator overrides such as force-target and force-phase controls
+- manual coordination edits such as claim creation, claim retargeting, or editing shared structure hints
 - soak testing and long-run reliability hardening
 - broader survival and task parity work
