@@ -117,6 +117,7 @@ public final class RPCServer {
         .maxResponseMessageLength(Integer.MAX_VALUE)
         .supportedSerializationFormats(GrpcSerializationFormats.values())
         .enableUnframedRequests(true)
+        .enableHttpJsonTranscoding(true)
         .enableHealthCheckService(true)
         .build();
 
