@@ -35,7 +35,7 @@ These are worth stating directly based on the current repository state:
 - A first automation proto, gRPC, and MCP surface now exists for state snapshots, coordination snapshots, bot-settings patching, and core control actions, but it is still far from complete.
 - Team collaboration is now configurable, including structure-intel and target-claim sharing, but it is still much narrower than the full coordination model described below.
 - Operator overrides now exist for forcing roles and objectives plus releasing claims, but not yet for claim creation, targets, phases, or subteams.
-- A first official automation dashboard now exists in `SoulFireClient`, including team controls, per-bot tuning, filtered team views, bulk interventions, and a dedicated per-bot memory browser, but it is still a polling-based operator view rather than a complete live control center.
+- A first official automation dashboard now exists in `SoulFireClient`, including team controls, per-bot tuning, filtered team views, bulk interventions, a dedicated per-bot memory browser, and first-pass run-health diagnostics, but it is still a polling-based operator view rather than a complete live control center.
 
 ## P0: reliability for 10 parallel beat-game bots
 
@@ -360,7 +360,7 @@ The official GUI client is in a different repository, but the following features
 - Map or world overlay for shared claims, portals, fortress hints, stronghold estimate, and portal-room estimate.
 - Controls to pause, resume, reprioritize, or remove bots from a collaborative run.
 - Collaboration toggle controls now exist, but there are still no controls for quarantine, subteams, or richer coordination modes.
-- Better surfacing of why a bot is stuck or what it is waiting on.
+- First stuck-bot diagnostics now exist, but deeper explanations for exactly what a bot is waiting on or missing still do not.
 - Run history and post-run summaries.
 - Live timeline views that correlate planner decisions, deaths, claims, and recoveries.
 - Rich settings forms with presets, validation, and inline documentation for every option.
@@ -489,7 +489,7 @@ If the goal is "10 SoulFire bots reliably beat the game in parallel", the highes
 These are worth calling out explicitly because they are easy to overlook:
 
 - The current automation proto/gRPC/MCP surface does not yet include streams, planner traces, force actions, or run-report export.
-- Per-bot memory inspection, claim inspection, and manual claim release now exist, but historical timelines, subscriptions, cross-bot memory views, and manual claim editing still do not.
+- Per-bot run-health diagnostics, per-bot memory inspection, claim inspection, and manual claim release now exist, but historical timelines, subscriptions, cross-bot memory views, and manual claim editing still do not.
 - Role/objective overrides and claim release now exist, but manual claim creation/retargeting, phase overrides, and force-target workflows still do not.
 - A first GUI client automation dashboard now exists in `SoulFireClient`, but it still has no event streams, run history, map overlays, or deep force-action tooling.
 - No dedicated automation event stream or run-report export exists yet.
