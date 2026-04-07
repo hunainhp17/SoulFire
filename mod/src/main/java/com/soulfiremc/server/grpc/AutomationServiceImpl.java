@@ -33,6 +33,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -86,6 +87,26 @@ public final class AutomationServiceImpl extends AutomationServiceGrpc.Automatio
       responseObserver.onCompleted();
     } catch (Throwable t) {
       log.error("Error getting automation bot state", t);
+      throw statusFromThrowable(t);
+    }
+  }
+
+  @Override
+  public void getAutomationMemoryState(GetAutomationMemoryStateRequest request,
+                                       StreamObserver<GetAutomationMemoryStateResponse> responseObserver) {
+    var instanceId = parseUuid(request.getInstanceId(), "instance_id");
+    var botId = parseUuid(request.getBotId(), "bot_id");
+    ServerRPCConstants.USER_CONTEXT_KEY.get().hasPermissionOrThrow(PermissionContext.instance(InstancePermission.READ_BOT_INFO, instanceId));
+
+    try {
+      var instance = requireInstance(instanceId);
+      var bot = requireConnectedBot(instance, botId);
+      responseObserver.onNext(GetAutomationMemoryStateResponse.newBuilder()
+        .setState(buildMemoryState(instance, bot, resolveMaxEntries(request.getMaxEntries())))
+        .build());
+      responseObserver.onCompleted();
+    } catch (Throwable t) {
+      log.error("Error getting automation memory state", t);
       throw statusFromThrowable(t);
     }
   }
@@ -240,6 +261,41 @@ public final class AutomationServiceImpl extends AutomationServiceGrpc.Automatio
     }
   }
 
+  @Override
+  public void resetAutomationMemory(ResetAutomationMemoryRequest request,
+                                    StreamObserver<ResetAutomationMemoryResponse> responseObserver) {
+    runBotAction(
+      request.getInstanceId(),
+      request.getBotIdsList(),
+      InstancePermission.INSTANCE_COMMAND_EXECUTION,
+      bot -> {
+        callInBotContext(bot, () -> {
+          bot.automation().resetMemory();
+          return null;
+        });
+        bot.instanceManager().addAuditLog(ServerRPCConstants.USER_CONTEXT_KEY.get(), AuditLogType.AUTOMATION_RESET_MEMORY, "bot=" + bot.accountName());
+        return successResult(bot, "reset automation memory");
+      },
+      new StreamObserver<>() {
+        @Override
+        public void onNext(AutomationActionResponse value) {
+          responseObserver.onNext(ResetAutomationMemoryResponse.newBuilder()
+            .addAllResults(value.getResultsList())
+            .build());
+        }
+
+        @Override
+        public void onError(Throwable t) {
+          responseObserver.onError(t);
+        }
+
+        @Override
+        public void onCompleted() {
+          responseObserver.onCompleted();
+        }
+      });
+  }
+
   private void runBotAction(String instanceIdRaw,
                             List<String> botIds,
                             InstancePermission permission,
@@ -347,6 +403,13 @@ public final class AutomationServiceImpl extends AutomationServiceGrpc.Automatio
           .setCount(snapshot.targetRequirementCount())
           .build());
       }
+      builder.addAllQueuedTargets(snapshot.queuedRequirements().stream()
+        .map(requirement -> AutomationRequirementTarget.newBuilder()
+          .setRequirementKey(requirement.requirementKey())
+          .setDisplayName(AutomationRequirements.describe(requirement.requirementKey()))
+          .setCount(requirement.count())
+          .build())
+        .toList());
       if (player != null) {
         builder.setDimension(player.level().dimension().identifier().toString());
         builder.setPosition(AutomationPosition.newBuilder()
@@ -400,6 +463,78 @@ public final class AutomationServiceImpl extends AutomationServiceGrpc.Automatio
     if (resolvedStatus.lastProgressMillis() > 0L) {
       builder.setLastProgressAt(Timestamps.fromMillis(resolvedStatus.lastProgressMillis()));
     }
+    return builder.build();
+  }
+
+  private AutomationMemoryState buildMemoryState(InstanceManager instance,
+                                                 BotConnection bot,
+                                                 int maxEntries) throws Exception {
+    var memory = callInBotContext(bot, () -> bot.automation().memorySnapshot(maxEntries));
+    var builder = AutomationMemoryState.newBuilder()
+      .setInstanceId(instance.id().toString())
+      .setBotId(bot.accountProfileId().toString())
+      .setAccountName(bot.accountName())
+      .setTick(memory.ticks())
+      .setRememberedBlockCount(memory.rememberedBlockCount())
+      .setRememberedContainerCount(memory.rememberedContainerCount())
+      .setRememberedEntityCount(memory.rememberedEntityCount())
+      .setRememberedDroppedItemCount(memory.rememberedDroppedItemCount())
+      .setUnreachablePositionCount(memory.unreachablePositionCount());
+
+    builder.addAllBlocks(memory.blocks().stream()
+      .map(block -> AutomationMemoryBlock.newBuilder()
+        .setX(block.pos().getX())
+        .setY(block.pos().getY())
+        .setZ(block.pos().getZ())
+        .setBlockId(BuiltInRegistries.BLOCK.getKey(block.state().getBlock()).toString())
+        .setLastSeenTick(block.lastSeenTick())
+        .build())
+      .toList());
+    builder.addAllContainers(memory.containers().stream()
+      .map(container -> AutomationMemoryContainer.newBuilder()
+        .setX(container.pos().getX())
+        .setY(container.pos().getY())
+        .setZ(container.pos().getZ())
+        .setBlockId(BuiltInRegistries.BLOCK.getKey(container.state().getBlock()).toString())
+        .setInspected(container.inspected())
+        .setDistinctItemKinds(container.distinctItemKinds())
+        .setTotalItemCount(container.totalItemCount())
+        .setLastSeenTick(container.lastSeenTick())
+        .build())
+      .toList());
+    builder.addAllEntities(memory.entities().stream()
+      .map(entity -> AutomationMemoryEntity.newBuilder()
+        .setEntityId(entity.uuid().toString())
+        .setEntityType(BuiltInRegistries.ENTITY_TYPE.getKey(entity.type()).toString())
+        .setPosition(AutomationPosition.newBuilder()
+          .setX(entity.position().x)
+          .setY(entity.position().y)
+          .setZ(entity.position().z)
+          .build())
+        .setLastSeenTick(entity.lastSeenTick())
+        .build())
+      .toList());
+    builder.addAllDroppedItems(memory.droppedItems().stream()
+      .map(item -> AutomationMemoryDroppedItem.newBuilder()
+        .setEntityId(item.uuid().toString())
+        .setItemId(BuiltInRegistries.ITEM.getKey(item.stack().getItem()).toString())
+        .setCount(item.stack().getCount())
+        .setPosition(AutomationPosition.newBuilder()
+          .setX(item.position().x)
+          .setY(item.position().y)
+          .setZ(item.position().z)
+          .build())
+        .setLastSeenTick(item.lastSeenTick())
+        .build())
+      .toList());
+    builder.addAllUnreachablePositions(memory.unreachablePositions().stream()
+      .map(pos -> AutomationMemoryUnreachablePosition.newBuilder()
+        .setX(pos.pos().getX())
+        .setY(pos.pos().getY())
+        .setZ(pos.pos().getZ())
+        .setUntilTick(pos.untilTick())
+        .build())
+      .toList());
     return builder.build();
   }
 
@@ -519,6 +654,10 @@ public final class AutomationServiceImpl extends AutomationServiceGrpc.Automatio
     } catch (IllegalArgumentException e) {
       throw Status.INVALID_ARGUMENT.withDescription("Invalid %s '%s'".formatted(fieldName, raw)).asRuntimeException();
     }
+  }
+
+  private static int resolveMaxEntries(int rawMaxEntries) {
+    return rawMaxEntries <= 0 ? 8 : Math.min(rawMaxEntries, 64);
   }
 
   private static String normalizeTarget(String rawTarget) {

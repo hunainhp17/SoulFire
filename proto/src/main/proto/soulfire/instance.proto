@@ -522,6 +522,8 @@ message InstanceAuditLogResponse {
     AUTOMATION_UPDATE_SETTINGS = 9;
     // An automation preset was applied.
     AUTOMATION_APPLY_PRESET = 10;
+    // Automation memory was reset.
+    AUTOMATION_RESET_MEMORY = 11;
   }
 
   // A single entry in the audit log.

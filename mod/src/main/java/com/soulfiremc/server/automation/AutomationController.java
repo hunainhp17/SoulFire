@@ -334,7 +334,26 @@ public final class AutomationController {
       effectivePhaseName(),
       currentAction != null ? currentAction.description() : null,
       target != null ? target.requirementKey() : null,
-      target != null ? target.count() : 0);
+      target != null ? target.count() : 0,
+      requirements.stream()
+        .map(requirement -> new QueuedRequirementSnapshot(
+          requirement.requirementKey(),
+          requirement.count(),
+          requirement.reason()))
+        .toList());
+  }
+
+  public AutomationWorldMemory.MemorySnapshot memorySnapshot(int maxEntries) {
+    var player = bot.minecraft().player;
+    return worldMemory.snapshot(player != null ? player.position() : null, maxEntries);
+  }
+
+  public void resetMemory() {
+    worldMemory.reset();
+    clearCurrentAction();
+    lastEyeDirectionTarget = null;
+    bot.botControl().stopAll();
+    status = mode == GoalMode.IDLE ? "automation memory reset" : "automation memory reset, replanning";
   }
 
   private boolean rememberOpenContainer(LocalPlayer player) {
@@ -1385,7 +1404,11 @@ public final class AutomationController {
                                @Nullable String beatPhase,
                                @Nullable String currentAction,
                                @Nullable String targetRequirementKey,
-                               int targetRequirementCount) {
+                               int targetRequirementCount,
+                               List<QueuedRequirementSnapshot> queuedRequirements) {
+  }
+
+  public record QueuedRequirementSnapshot(String requirementKey, int count, String reason) {
   }
 
   private record Plan(@Nullable AutomationAction action, List<RequirementGoal> dependencies, String reason) {

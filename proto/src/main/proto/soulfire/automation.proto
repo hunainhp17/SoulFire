@@ -116,6 +116,7 @@ message AutomationBotState {
   optional string last_recovery_reason = 17;
   google.protobuf.Timestamp last_progress_at = 18;
   AutomationBotSettings settings = 19;
+  repeated AutomationRequirementTarget queued_targets = 20;
 }
 
 message AutomationTeamState {
@@ -126,6 +127,64 @@ message AutomationTeamState {
   int32 active_bots = 5;
   repeated AutomationResourceQuota quotas = 6;
   repeated AutomationBotState bots = 7;
+}
+
+message AutomationMemoryBlock {
+  int32 x = 1;
+  int32 y = 2;
+  int32 z = 3;
+  string block_id = 4;
+  int64 last_seen_tick = 5;
+}
+
+message AutomationMemoryContainer {
+  int32 x = 1;
+  int32 y = 2;
+  int32 z = 3;
+  string block_id = 4;
+  bool inspected = 5;
+  int32 distinct_item_kinds = 6;
+  int32 total_item_count = 7;
+  int64 last_seen_tick = 8;
+}
+
+message AutomationMemoryEntity {
+  string entity_id = 1;
+  string entity_type = 2;
+  AutomationPosition position = 3;
+  int64 last_seen_tick = 4;
+}
+
+message AutomationMemoryDroppedItem {
+  string entity_id = 1;
+  string item_id = 2;
+  int32 count = 3;
+  AutomationPosition position = 4;
+  int64 last_seen_tick = 5;
+}
+
+message AutomationMemoryUnreachablePosition {
+  int32 x = 1;
+  int32 y = 2;
+  int32 z = 3;
+  int64 until_tick = 4;
+}
+
+message AutomationMemoryState {
+  string instance_id = 1;
+  string bot_id = 2;
+  string account_name = 3;
+  int64 tick = 4;
+  int32 remembered_block_count = 5;
+  int32 remembered_container_count = 6;
+  int32 remembered_entity_count = 7;
+  int32 remembered_dropped_item_count = 8;
+  int32 unreachable_position_count = 9;
+  repeated AutomationMemoryBlock blocks = 10;
+  repeated AutomationMemoryContainer containers = 11;
+  repeated AutomationMemoryEntity entities = 12;
+  repeated AutomationMemoryDroppedItem dropped_items = 13;
+  repeated AutomationMemoryUnreachablePosition unreachable_positions = 14;
 }
 
 message GetAutomationTeamStateRequest {
@@ -143,6 +202,16 @@ message GetAutomationBotStateRequest {
 
 message GetAutomationBotStateResponse {
   AutomationBotState state = 1;
+}
+
+message GetAutomationMemoryStateRequest {
+  string instance_id = 1 [(google.api.field_behavior) = REQUIRED, (soulfire.v1.api_field).format = "uuid"];
+  string bot_id = 2 [(google.api.field_behavior) = REQUIRED, (soulfire.v1.api_field).format = "uuid"];
+  int32 max_entries = 3;
+}
+
+message GetAutomationMemoryStateResponse {
+  AutomationMemoryState state = 1;
 }
 
 message AutomationBotActionResult {
@@ -165,6 +234,15 @@ message StartAutomationAcquireRequest {
 }
 
 message AutomationActionResponse {
+  repeated AutomationBotActionResult results = 1;
+}
+
+message ResetAutomationMemoryRequest {
+  string instance_id = 1 [(google.api.field_behavior) = REQUIRED, (soulfire.v1.api_field).format = "uuid"];
+  repeated string bot_ids = 2 [(soulfire.v1.api_field).format = "uuid"];
+}
+
+message ResetAutomationMemoryResponse {
   repeated AutomationBotActionResult results = 1;
 }
 
@@ -202,6 +280,15 @@ service AutomationService {
     option (google.api.http) = { get: "/v1/instances/{instance_id}/automation/bots/{bot_id}" };
     option (soulfire.v1.api_method) = {
       display_name: "Get automation bot state"
+      permissions: "READ_BOT_INFO"
+      scope: "instance.bot"
+    };
+  }
+
+  rpc GetAutomationMemoryState (GetAutomationMemoryStateRequest) returns (GetAutomationMemoryStateResponse) {
+    option (google.api.http) = { get: "/v1/instances/{instance_id}/automation/bots/{bot_id}/memory" };
+    option (soulfire.v1.api_method) = {
+      display_name: "Get automation memory state"
       permissions: "READ_BOT_INFO"
       scope: "instance.bot"
     };
@@ -295,6 +382,19 @@ service AutomationService {
       permissions: "UPDATE_INSTANCE_CONFIG"
       scope: "instance"
       side_effects: "Toggles team orchestration by switching the instance between collaborative and independent presets."
+    };
+  }
+
+  rpc ResetAutomationMemory (ResetAutomationMemoryRequest) returns (ResetAutomationMemoryResponse) {
+    option (google.api.http) = {
+      post: "/v1/instances/{instance_id}/automation:resetMemory"
+      body: "*"
+    };
+    option (soulfire.v1.api_method) = {
+      display_name: "Reset automation memory"
+      permissions: "INSTANCE_COMMAND_EXECUTION"
+      scope: "instance"
+      side_effects: "Clears remembered automation world state for the selected connected bots and forces replanning."
     };
   }
 }

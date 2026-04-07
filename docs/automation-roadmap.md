@@ -246,11 +246,12 @@ These key names are illustrative rather than final, but the product needs this l
 ### Commands
 
 - Expand the automation command set beyond `beat`, `get`, `status`, `teamstatus`, and `stop`.
-- Add `pause`, `resume`, `restart-phase`, and `abort-phase`.
+- `pause`, `resume`, queue inspection, and per-bot memory reset now exist.
+- Add `restart-phase` and `abort-phase`.
 - Add commands to set roles and objectives manually.
 - Add commands to claim or release targets manually.
-- Add commands to inspect planner decisions and current requirement queues.
-- Add commands to dump or reset automation memory.
+- Expand queue inspection beyond the current requirement list into richer planner-decision visibility.
+- Expand memory inspection beyond the current per-bot remembered-state dump and per-bot reset flow.
 - Add commands to toggle collaboration on and off without restarting the instance.
 - Add commands to apply automation presets and diff automation settings against defaults.
 - Add commands to quarantine, unquarantine, or reassign a bot during a team run.
@@ -275,6 +276,7 @@ Already implemented in the first API slice:
 
 - `GetAutomationTeamState`
 - `GetAutomationBotState`
+- `GetAutomationMemoryState`
 - `StartAutomationBeat`
 - `StartAutomationAcquire`
 - `PauseAutomation`
@@ -282,6 +284,7 @@ Already implemented in the first API slice:
 - `StopAutomation`
 - `ApplyAutomationPreset`
 - `SetAutomationCollaboration`
+- `ResetAutomationMemory`
 
 - `StartAutomationRun`
 - `StopAutomationRun`
@@ -455,6 +458,7 @@ If the goal is "10 SoulFire bots reliably beat the game in parallel", the highes
 These are worth calling out explicitly because they are easy to overlook:
 
 - The current automation proto/gRPC/MCP surface does not yet include streams, planner traces, force actions, or run-report export.
+- The current automation memory surface is per-bot only; shared-memory and claim inspection is still missing.
 - No dedicated GUI client automation dashboard exists in this repository.
 - No dedicated automation event stream or run-report export exists yet.
 - No automation-specific permission model exists yet.

@@ -49,6 +49,12 @@ Current `automation` command surface:
   Resumes automation for selected paused bots.
 - `automation collaboration <true|false>`
   Toggles team orchestration for the visible instances. `false` switches the instance to the `independent-runners` preset.
+- `automation queue`
+  Shows the current requirement queue for the selected bots.
+- `automation memorystatus [maxEntries]`
+  Shows a capped snapshot of remembered automation world state for the selected bots.
+- `automation resetmemory`
+  Clears remembered automation world state for the selected bots and forces replanning.
 - `automation status`
   Shows current bot-level automation state.
 - `automation teamstatus`
@@ -65,7 +71,9 @@ Current gRPC RPCs:
 - `GetAutomationTeamState`
   Returns instance-level automation settings, team objective, team quotas, and structured per-bot runtime state.
 - `GetAutomationBotState`
-  Returns structured automation state for one connected bot.
+  Returns structured automation state for one connected bot, including the queued requirement targets.
+- `GetAutomationMemoryState`
+  Returns a capped per-bot snapshot of remembered automation world state.
 - `StartAutomationBeat`
   Starts beat-the-game automation for the selected connected bots.
 - `StartAutomationAcquire`
@@ -80,11 +88,14 @@ Current gRPC RPCs:
   Applies a named automation preset to the instance and persists matching per-bot automation defaults.
 - `SetAutomationCollaboration`
   Toggles team orchestration by switching between collaborative and independent preset behavior.
+- `ResetAutomationMemory`
+  Clears remembered automation world state for the selected connected bots and forces replanning.
 
 Matching MCP tools are also available:
 
 - `get_automation_team_state`
 - `get_automation_bot_state`
+- `get_automation_memory_state`
 - `start_automation_beat`
 - `start_automation_acquire`
 - `pause_automation`
@@ -92,6 +103,7 @@ Matching MCP tools are also available:
 - `stop_automation`
 - `apply_automation_preset`
 - `set_automation_collaboration`
+- `reset_automation_memory`
 
 ## Current behavior notes
 
@@ -102,6 +114,8 @@ Matching MCP tools are also available:
 - Shared End entry can now throttle how many bots enter the End simultaneously.
 - Death recovery can now be disabled per bot.
 - A dedicated automation gRPC/MCP control surface now exists for runtime inspection and control.
+- Requirement queues are now exposed over both CLI and gRPC/MCP state snapshots.
+- Per-bot automation memory can now be inspected and reset from both the CLI and the dedicated automation API.
 
 ## Still missing
 
@@ -110,5 +124,6 @@ This is not the finished automation surface. Major missing pieces are still trac
 - GUI dashboards and operator controls
 - richer settings coverage and presets
 - automation event streams, planner traces, and run-report export
+- team shared-memory and claim inspection
 - soak testing and long-run reliability hardening
 - broader survival and task parity work

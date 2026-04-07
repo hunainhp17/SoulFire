@@ -26,6 +26,8 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.soulfiremc.server.InstanceManager;
 import com.soulfiremc.server.automation.AutomationControlSupport;
 import com.soulfiremc.server.automation.AutomationRequirements;
+import com.soulfiremc.server.automation.AutomationWorldMemory;
+import com.soulfiremc.server.bot.BotConnection;
 import com.soulfiremc.server.database.AuditLogType;
 import com.soulfiremc.server.settings.instance.AutomationSettings;
 import com.soulfiremc.server.command.CommandSourceStack;
@@ -208,6 +210,42 @@ public final class AutomationCommand {
           c.getSource().source().sendInfo(bot.accountName() + ": " + bot.automation().status());
           return Command.SINGLE_SUCCESS;
         }))));
+    root.then(literal("queue")
+      .executes(help(
+        "Shows the current automation requirement queue for selected bots",
+        c -> forEveryBot(c, bot -> {
+          var snapshot = bot.automation().snapshot();
+          if (snapshot.queuedRequirements().isEmpty()) {
+            c.getSource().source().sendInfo(bot.accountName() + ": queue empty");
+            return Command.SINGLE_SUCCESS;
+          }
+
+          var queueDescription = snapshot.queuedRequirements().stream()
+            .map(requirement -> "%s x%d (%s)".formatted(
+              AutomationRequirements.describe(requirement.requirementKey()),
+              requirement.count(),
+              requirement.reason()))
+            .toList();
+          c.getSource().source().sendInfo(bot.accountName() + ": " + String.join(" -> ", queueDescription));
+          return Command.SINGLE_SUCCESS;
+        }))));
+    root.then(literal("memorystatus")
+      .executes(help(
+        "Shows a compact summary of remembered automation world state for selected bots",
+        c -> showMemoryStatus(c, 5)))
+      .then(argument("maxEntries", IntegerArgumentType.integer(1, 20))
+        .executes(help(
+          "Shows remembered automation world state for selected bots with a configurable entry cap",
+          c -> showMemoryStatus(c, IntegerArgumentType.getInteger(c, "maxEntries"))))));
+    root.then(literal("resetmemory")
+      .executes(help(
+        "Clears remembered automation world state for selected bots and forces replanning",
+        c -> forEveryBot(c, bot -> {
+          resetMemory(bot);
+          bot.instanceManager().addAuditLog(c.getSource().source(), AuditLogType.AUTOMATION_RESET_MEMORY, "bot=" + bot.accountName());
+          c.getSource().source().sendInfo("Reset automation memory for " + bot.accountName());
+          return Command.SINGLE_SUCCESS;
+        }))));
     root.then(literal("teamstatus")
       .executes(help(
         "Shows shared automation coordinator status for the current instance",
@@ -291,6 +329,90 @@ public final class AutomationCommand {
         AutomationControlSupport.formatEnumId(preset)));
       return Command.SINGLE_SUCCESS;
     });
+  }
+
+  private static int showMemoryStatus(com.mojang.brigadier.context.CommandContext<CommandSourceStack> context,
+                                      int maxEntries) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    return forEveryBot(context, bot -> {
+      var memory = readMemorySnapshot(bot, maxEntries);
+      context.getSource().source().sendInfo("%s: ticks=%d blocks=%d containers=%d entities=%d dropped=%d unreachable=%d".formatted(
+        bot.accountName(),
+        memory.ticks(),
+        memory.rememberedBlockCount(),
+        memory.rememberedContainerCount(),
+        memory.rememberedEntityCount(),
+        memory.rememberedDroppedItemCount(),
+        memory.unreachablePositionCount()));
+
+      if (!memory.blocks().isEmpty()) {
+        context.getSource().source().sendInfo("  blocks: " + memory.blocks().stream()
+          .map(block -> "%s@%d,%d,%d".formatted(
+            block.state().getBlock().getName().getString(),
+            block.pos().getX(),
+            block.pos().getY(),
+            block.pos().getZ()))
+          .toList());
+      }
+      if (!memory.containers().isEmpty()) {
+        context.getSource().source().sendInfo("  containers: " + memory.containers().stream()
+          .map(container -> "%s@%d,%d,%d inspected=%s items=%d".formatted(
+            container.state().getBlock().getName().getString(),
+            container.pos().getX(),
+            container.pos().getY(),
+            container.pos().getZ(),
+            container.inspected() ? "yes" : "no",
+            container.totalItemCount()))
+          .toList());
+      }
+      if (!memory.entities().isEmpty()) {
+        context.getSource().source().sendInfo("  entities: " + memory.entities().stream()
+          .map(entity -> "%s@%d,%d,%d".formatted(
+            entity.type().toShortString(),
+            (int) Math.floor(entity.position().x),
+            (int) Math.floor(entity.position().y),
+            (int) Math.floor(entity.position().z)))
+          .toList());
+      }
+      if (!memory.droppedItems().isEmpty()) {
+        context.getSource().source().sendInfo("  dropped: " + memory.droppedItems().stream()
+          .map(item -> "%s x%d@%d,%d,%d".formatted(
+            item.stack().getHoverName().getString(),
+            item.stack().getCount(),
+            (int) Math.floor(item.position().x),
+            (int) Math.floor(item.position().y),
+            (int) Math.floor(item.position().z)))
+          .toList());
+      }
+      if (!memory.unreachablePositions().isEmpty()) {
+        context.getSource().source().sendInfo("  unreachable: " + memory.unreachablePositions().stream()
+          .map(pos -> "%d,%d,%d until=%d".formatted(
+            pos.pos().getX(),
+            pos.pos().getY(),
+            pos.pos().getZ(),
+            pos.untilTick()))
+          .toList());
+      }
+      return Command.SINGLE_SUCCESS;
+    });
+  }
+
+  private static AutomationWorldMemory.MemorySnapshot readMemorySnapshot(BotConnection bot, int maxEntries) {
+    try {
+      return bot.runnableWrapper().wrap(() -> bot.automation().memorySnapshot(maxEntries)).call();
+    } catch (Exception e) {
+      throw new IllegalStateException("Failed to read automation memory for " + bot.accountName(), e);
+    }
+  }
+
+  private static void resetMemory(BotConnection bot) {
+    try {
+      bot.runnableWrapper().wrap(() -> {
+        bot.automation().resetMemory();
+        return null;
+      }).call();
+    } catch (Exception e) {
+      throw new IllegalStateException("Failed to reset automation memory for " + bot.accountName(), e);
+    }
   }
 
   private static AutomationSettings.Preset parsePreset(String raw) {

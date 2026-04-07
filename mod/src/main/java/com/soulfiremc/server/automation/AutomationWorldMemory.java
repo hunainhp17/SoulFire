@@ -41,9 +41,13 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.TrappedChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -242,6 +246,32 @@ public final class AutomationWorldMemory {
     return ticks;
   }
 
+  public void reset() {
+    blocks.clear();
+    containers.clear();
+    entities.clear();
+    droppedItems.clear();
+    unreachablePositions.clear();
+    lastBlockScan = 0L;
+  }
+
+  public MemorySnapshot snapshot(@Nullable Vec3 origin, int maxEntries) {
+    prune();
+    var cappedEntries = Math.max(1, maxEntries);
+    return new MemorySnapshot(
+      ticks,
+      blocks.size(),
+      containers.size(),
+      entities.size(),
+      droppedItems.size(),
+      unreachablePositions.size(),
+      snapshotBlocks(origin, cappedEntries),
+      snapshotContainers(origin, cappedEntries),
+      snapshotEntities(origin, cappedEntries),
+      snapshotDroppedItems(origin, cappedEntries),
+      snapshotUnreachable(origin, cappedEntries));
+  }
+
   public Collection<RememberedBlock> rememberedBlocks() {
     return java.util.List.copyOf(blocks.values());
   }
@@ -318,6 +348,129 @@ public final class AutomationWorldMemory {
     droppedItems.values().removeIf(item -> ticks - item.lastSeenTick() > 40L);
     entities.values().removeIf(entity -> ticks - entity.lastSeenTick() > 40L);
     unreachablePositions.entrySet().removeIf(entry -> entry.getValue() < ticks);
+  }
+
+  private List<RememberedBlockSnapshot> snapshotBlocks(@Nullable Vec3 origin, int maxEntries) {
+    var entries = new ArrayList<>(blocks.values());
+    entries.sort(blockComparator(origin));
+    return entries.stream()
+      .limit(maxEntries)
+      .map(block -> new RememberedBlockSnapshot(block.pos(), block.state(), block.lastSeenTick()))
+      .toList();
+  }
+
+  private List<RememberedContainerSnapshot> snapshotContainers(@Nullable Vec3 origin, int maxEntries) {
+    var entries = new ArrayList<>(containers.values());
+    entries.sort(containerComparator(origin));
+    return entries.stream()
+      .limit(maxEntries)
+      .map(container -> new RememberedContainerSnapshot(
+        container.pos(),
+        container.state(),
+        container.inspected(),
+        container.contents().size(),
+        container.contents().values().stream().mapToInt(Integer::intValue).sum(),
+        container.lastSeenTick()))
+      .toList();
+  }
+
+  private List<RememberedEntitySnapshot> snapshotEntities(@Nullable Vec3 origin, int maxEntries) {
+    var entries = new ArrayList<>(entities.values());
+    entries.sort(entityComparator(origin));
+    return entries.stream()
+      .limit(maxEntries)
+      .map(entity -> new RememberedEntitySnapshot(entity.uuid(), entity.type(), entity.position(), entity.lastSeenTick()))
+      .toList();
+  }
+
+  private List<RememberedItemSnapshot> snapshotDroppedItems(@Nullable Vec3 origin, int maxEntries) {
+    var entries = new ArrayList<>(droppedItems.values());
+    entries.sort(itemComparator(origin));
+    return entries.stream()
+      .limit(maxEntries)
+      .map(item -> new RememberedItemSnapshot(item.uuid(), item.stack().copy(), item.position(), item.lastSeenTick()))
+      .toList();
+  }
+
+  private List<UnreachablePositionSnapshot> snapshotUnreachable(@Nullable Vec3 origin, int maxEntries) {
+    var entries = new ArrayList<>(unreachablePositions.entrySet());
+    entries.sort(unreachableComparator(origin));
+    return entries.stream()
+      .limit(maxEntries)
+      .map(entry -> new UnreachablePositionSnapshot(BlockPos.of(entry.getKey()), entry.getValue()))
+      .toList();
+  }
+
+  private static Comparator<RememberedBlock> blockComparator(@Nullable Vec3 origin) {
+    if (origin == null) {
+      return Comparator.comparingLong(RememberedBlock::lastSeenTick).reversed();
+    }
+    return Comparator.comparingDouble(block -> block.pos().getCenter().distanceToSqr(origin));
+  }
+
+  private static Comparator<RememberedContainer> containerComparator(@Nullable Vec3 origin) {
+    if (origin == null) {
+      return Comparator.comparingLong(RememberedContainer::lastSeenTick).reversed();
+    }
+    return Comparator.comparingDouble(container -> container.pos().getCenter().distanceToSqr(origin));
+  }
+
+  private static Comparator<RememberedEntity> entityComparator(@Nullable Vec3 origin) {
+    if (origin == null) {
+      return Comparator.comparingLong(RememberedEntity::lastSeenTick).reversed();
+    }
+    return Comparator.comparingDouble(entity -> entity.position().distanceToSqr(origin));
+  }
+
+  private static Comparator<RememberedItem> itemComparator(@Nullable Vec3 origin) {
+    if (origin == null) {
+      return Comparator.comparingLong(RememberedItem::lastSeenTick).reversed();
+    }
+    return Comparator.comparingDouble(item -> item.position().distanceToSqr(origin));
+  }
+
+  private static Comparator<Map.Entry<Long, Long>> unreachableComparator(@Nullable Vec3 origin) {
+    if (origin == null) {
+      return Comparator.<Map.Entry<Long, Long>>comparingLong(entry -> entry.getValue()).reversed();
+    }
+    return Comparator.comparingDouble(entry -> BlockPos.of(entry.getKey()).getCenter().distanceToSqr(origin));
+  }
+
+  public record MemorySnapshot(
+    long ticks,
+    int rememberedBlockCount,
+    int rememberedContainerCount,
+    int rememberedEntityCount,
+    int rememberedDroppedItemCount,
+    int unreachablePositionCount,
+    List<RememberedBlockSnapshot> blocks,
+    List<RememberedContainerSnapshot> containers,
+    List<RememberedEntitySnapshot> entities,
+    List<RememberedItemSnapshot> droppedItems,
+    List<UnreachablePositionSnapshot> unreachablePositions
+  ) {
+  }
+
+  public record RememberedBlockSnapshot(BlockPos pos, BlockState state, long lastSeenTick) {
+  }
+
+  public record RememberedContainerSnapshot(
+    BlockPos pos,
+    BlockState state,
+    boolean inspected,
+    int distinctItemKinds,
+    int totalItemCount,
+    long lastSeenTick
+  ) {
+  }
+
+  public record RememberedEntitySnapshot(UUID uuid, EntityType<?> type, Vec3 position, long lastSeenTick) {
+  }
+
+  public record RememberedItemSnapshot(UUID uuid, ItemStack stack, Vec3 position, long lastSeenTick) {
+  }
+
+  public record UnreachablePositionSnapshot(BlockPos pos, long untilTick) {
   }
 
   public record RememberedBlock(BlockPos pos, BlockState state, long lastSeenTick) {

@@ -335,6 +335,21 @@ public final class MCPService {
             .setBotId(str(args, "bot_id"))
             .build(), o)))));
 
+    tools.add(tool("get_automation_memory_state",
+      "Get a capped snapshot of one bot's remembered automation world state, including remembered blocks, containers, entities, dropped items, and unreachable positions.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "bot_id", prop("string", "UUID of the bot"),
+        "max_entries", prop("integer", "Optional cap per remembered entry type. Defaults to 8 and is capped server-side.")),
+      List.of("instance_id", "bot_id"),
+      authed((exchange, args) -> {
+        var builder = GetAutomationMemoryStateRequest.newBuilder()
+          .setInstanceId(str(args, "instance_id"))
+          .setBotId(str(args, "bot_id"));
+        ifPresent(args, "max_entries", value -> builder.setMaxEntries(((Number) value).intValue()));
+        return grpc(o -> automationService.getAutomationMemoryState(builder.build(), o));
+      })));
+
     tools.add(tool("start_automation_beat",
       "Start beat-the-game automation for connected bots in an instance. Omit bot_ids to target all connected bots.",
       Map.of(
@@ -431,6 +446,19 @@ public final class MCPService {
             .setInstanceId(str(args, "instance_id"))
             .setEnabled(bool(args, "enabled"))
             .build(), o)))));
+
+    tools.add(tool("reset_automation_memory",
+      "Clear remembered automation world state for connected bots in an instance and force replanning. Omit bot_ids to target all connected bots.",
+      Map.of(
+        "instance_id", prop("string", "UUID of the instance"),
+        "bot_ids", arrayProp("Optional list of bot UUIDs. Omit to target all connected bots.")),
+      List.of("instance_id"),
+      authed((exchange, args) -> {
+        var builder = ResetAutomationMemoryRequest.newBuilder()
+          .setInstanceId(str(args, "instance_id"));
+        ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
+        return grpc(o -> automationService.resetAutomationMemory(builder.build(), o));
+      })));
 
     tools.add(tool("set_bot_movement",
       "Control bot movement (WASD keys, jump, sneak, sprint). Only set the fields you want to change.",
