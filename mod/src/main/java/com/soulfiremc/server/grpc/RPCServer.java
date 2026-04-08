@@ -64,7 +64,9 @@ public final class RPCServer {
   private final Server prometheusServer;
   @Getter
   private final ScriptServiceImpl scriptService;
+  @Getter
   private final MCPService mcpService;
+  @Getter
   private final OpenApiService openApiService;
 
   public RPCServer(

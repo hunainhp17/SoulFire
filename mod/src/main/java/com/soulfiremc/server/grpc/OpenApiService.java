@@ -27,6 +27,7 @@ import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServiceConfig;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.soulfiremc.server.SoulFireServer;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
@@ -45,6 +46,7 @@ public final class OpenApiService implements HttpService {
 
   @Nullable
   private Server server;
+  @Getter
   private volatile byte[] openApiDocument = "{}".getBytes(StandardCharsets.UTF_8);
   @Nullable
   private volatile Throwable generationFailure;

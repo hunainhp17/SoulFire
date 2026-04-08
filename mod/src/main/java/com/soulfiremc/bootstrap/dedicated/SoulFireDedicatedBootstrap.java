@@ -27,6 +27,8 @@ import com.soulfiremc.server.util.SFPathConstants;
 import com.soulfiremc.server.util.log4j.GenericTerminalConsole;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
 
 @Slf4j
@@ -47,6 +49,16 @@ public final class SoulFireDedicatedBootstrap extends SoulFireAbstractBootstrap 
 
     var soulFire =
       new SoulFireServer(host, port, SoulFireAbstractBootstrap.START_TIME);
+
+    if (Boolean.getBoolean("sf.dumpOpenApi")) {
+      try {
+        Files.write(SFPathConstants.BASE_DIR.resolve("openapi.json"), soulFire.rpcServer().openApiService().openApiDocument());
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+      soulFire.shutdownManager().shutdownSoftware(true);
+      return;
+    }
 
     if (AuthSystem.ROOT_DEFAULT_EMAIL.equals(soulFire.authSystem().rootUserData().getEmail())) {
       log.info("The root users email is '{}', please change it using the command 'set-email <email>', you can login with the client using that email", AuthSystem.ROOT_DEFAULT_EMAIL);

@@ -31,8 +31,7 @@ tasks.register("runSFCLI", JavaExec::class) {
     "-XX:+UseFastUnorderedTimeStamps",
     "-XX:+UseVectorCmov",
     "-XX:+UseCriticalJavaThreadPriority",
-    "-Dsf.flags.v2=true",
-    "-Dsf.remapToNamed=true"
+    "-Dsf.flags.v2=true"
   )
 
   if (System.getProperty("idea.active") != null) {

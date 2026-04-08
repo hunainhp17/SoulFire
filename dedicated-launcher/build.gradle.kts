@@ -31,8 +31,49 @@ tasks.register("runSFDedicated", JavaExec::class) {
     "-XX:+UseFastUnorderedTimeStamps",
     "-XX:+UseVectorCmov",
     "-XX:+UseCriticalJavaThreadPriority",
+    "-Dsf.flags.v2=true"
+  )
+
+  if (System.getProperty("idea.active") != null) {
+    argsMutable += "-Dnet.kyori.ansi.colorLevel=truecolor"
+  }
+
+  jvmArgs = argsMutable
+
+  standardInput = System.`in`
+
+  val runDir = projectDir.resolve("run")
+  runDir.mkdirs()
+  workingDir = runDir
+
+  outputs.upToDateWhen { false }
+}
+
+tasks.register("dumpSFOpenAPI", JavaExec::class) {
+  group = "application"
+  description = "Runs the SoulFire dedicated server and dumps the OpenAPI schema"
+
+  javaLauncher = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(25)
+  }
+
+  mainClass = projectMainClass
+  classpath = sourceSets["main"].runtimeClasspath
+
+  val argsMutable = mutableListOf(
+    "--enable-native-access=ALL-UNNAMED", // Needed for JavaExec
+    "-Xmx8G",
+    "-XX:+EnableDynamicAgentLoading",
+    "-XX:+UnlockExperimentalVMOptions",
+    "-XX:+UseZGC",
+    "-XX:+UseCompactObjectHeaders",
+    "-XX:+AlwaysActAsServerClassMachine",
+    "-XX:+UseNUMA",
+    "-XX:+UseFastUnorderedTimeStamps",
+    "-XX:+UseVectorCmov",
+    "-XX:+UseCriticalJavaThreadPriority",
     "-Dsf.flags.v2=true",
-    "-Dsf.remapToNamed=true"
+    "-Dsf.dumpOpenApi=true"
   )
 
   if (System.getProperty("idea.active") != null) {
