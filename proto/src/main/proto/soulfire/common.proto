@@ -196,12 +196,12 @@ message MinecraftAccountProto {
   // Organized as namespace -> key -> value mappings.
   // These settings override instance-level settings when the bot is running.
   // Typically includes bot-specific behavior settings.
-  repeated SettingsNamespace config = 8;
+  repeated SettingsNamespace config = 8 [(google.api.field_behavior) = UNORDERED_LIST];
   // Persistent metadata stored with the account across sessions.
   // Organized as namespace -> key -> value mappings.
   // Used by plugins and the system to store account-specific state
   // that should persist across bot restarts (e.g., last position, inventory cache).
-  repeated SettingsNamespace persistent_metadata = 9;
+  repeated SettingsNamespace persistent_metadata = 9 [(google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // A collection of settings entries grouped under a common namespace.
@@ -226,7 +226,7 @@ message SettingsNamespace {
   string namespace = 1 [(google.api.field_behavior) = REQUIRED];
   // The list of setting entries within this namespace.
   // Each entry has a unique key within the namespace.
-  repeated SettingsEntry entries = 2;
+  repeated SettingsEntry entries = 2 [(google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // Uniquely identifies a single setting entry by its namespace and key.

@@ -82,7 +82,7 @@ message UserListResponse {
   }
 
   // List of all users in the system.
-  repeated User users = 1 [(google.api.field_behavior) = REQUIRED];
+  repeated User users = 1 [(google.api.field_behavior) = REQUIRED, (google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // Request message for retrieving detailed information about a specific user.

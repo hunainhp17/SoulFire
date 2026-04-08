@@ -28,7 +28,7 @@ message InstanceUser {
 message InstanceConfig {
   // Instance settings organized by namespace. Each namespace contains
   // key-value pairs for configuration options.
-  repeated SettingsNamespace settings = 1;
+  repeated SettingsNamespace settings = 1 [(google.api.field_behavior) = UNORDERED_LIST];
   // List of Minecraft accounts available to this instance for bot connections.
   repeated MinecraftAccountProto accounts = 2;
   // List of proxies available to this instance for routing bot connections.
@@ -37,7 +37,7 @@ message InstanceConfig {
   // Organized as namespace -> key -> value mappings.
   // Used by plugins and the system to store instance-specific state
   // that should persist across restarts.
-  repeated SettingsNamespace persistent_metadata = 4;
+  repeated SettingsNamespace persistent_metadata = 4 [(google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // Request to create a new instance.
@@ -109,7 +109,7 @@ message InstanceListResponse {
   }
 
   // List of instances the user has READ_INSTANCE permission for.
-  repeated Instance instances = 1 [(google.api.field_behavior) = REQUIRED];
+  repeated Instance instances = 1 [(google.api.field_behavior) = REQUIRED, (google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // Represents the grant status of a specific instance permission for the current user.
@@ -412,7 +412,7 @@ message GetAccountMetadataRequest {
 message GetAccountMetadataResponse {
   // Metadata organized by namespace. Each namespace contains
   // key-value pairs of metadata.
-  repeated SettingsNamespace metadata = 1 [(google.api.field_behavior) = REQUIRED];
+  repeated SettingsNamespace metadata = 1 [(google.api.field_behavior) = REQUIRED, (google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // Request to set a single persistent metadata entry for an account.
@@ -462,7 +462,7 @@ message GetInstanceMetadataRequest {
 message GetInstanceMetadataResponse {
   // Metadata organized by namespace. Each namespace contains
   // key-value pairs of metadata.
-  repeated SettingsNamespace metadata = 1 [(google.api.field_behavior) = REQUIRED];
+  repeated SettingsNamespace metadata = 1 [(google.api.field_behavior) = REQUIRED, (google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // Request to set a single persistent metadata entry for an instance.

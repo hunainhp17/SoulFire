@@ -731,27 +731,63 @@ final class OpenApiSpecGenerator {
     return currentField == null ? null : protoFieldMetadata.get(fieldKey(currentStruct.name(), currentField.name()));
   }
 
+  static boolean isRequired(FieldRequirement requirement, Set<FieldBehavior> behaviors) {
+    if (behaviors.contains(FieldBehavior.REQUIRED)) {
+      return true;
+    }
+    if (behaviors.contains(FieldBehavior.OPTIONAL)) {
+      return false;
+    }
+
+    return requirement == FieldRequirement.REQUIRED;
+  }
+
   private static boolean isRequired(FieldRequirement requirement, ProtoFieldMetadata fieldMetadata) {
-    return requirement == FieldRequirement.REQUIRED
-      || fieldMetadata != null && fieldMetadata.behaviors().contains(FieldBehavior.REQUIRED);
+    return isRequired(
+      requirement,
+      fieldMetadata == null ? Set.of() : fieldMetadata.behaviors()
+    );
   }
 
   private ObjectNode applyFieldSchemaMetadata(ObjectNode schema, ProtoFieldMetadata metadata) {
-    if (metadata == null) {
-      return schema;
-    }
+    return applyFieldSchemaMetadata(
+      schema,
+      metadata == null ? Set.of() : metadata.behaviors(),
+      metadata == null ? "" : metadata.format(),
+      metadata == null ? "" : metadata.example()
+    );
+  }
 
-    if (!metadata.format().isBlank()) {
-      schema.put("format", metadata.format());
+  static ObjectNode applyFieldSchemaMetadata(
+    ObjectNode schema,
+    Set<FieldBehavior> behaviors,
+    String format,
+    String example
+  ) {
+    if (!format.isBlank()) {
+      schema.put("format", format);
     }
-    if (!metadata.example().isBlank()) {
-      schema.set("example", tryReadJson(metadata.example()));
+    if (!example.isBlank()) {
+      schema.set("example", tryReadJson(example));
     }
-    if (metadata.behaviors().contains(FieldBehavior.OUTPUT_ONLY)) {
+    if (behaviors.contains(FieldBehavior.OUTPUT_ONLY)) {
       schema.put("readOnly", true);
     }
-    if (metadata.behaviors().contains(FieldBehavior.INPUT_ONLY)) {
+    if (behaviors.contains(FieldBehavior.INPUT_ONLY)) {
       schema.put("writeOnly", true);
+    }
+
+    var unsupportedBehaviors = behaviors.stream()
+      .filter(behavior -> switch (behavior) {
+        case OPTIONAL, REQUIRED, OUTPUT_ONLY, INPUT_ONLY -> false;
+        default -> true;
+      })
+      .map(FieldBehavior::name)
+      .sorted()
+      .toList();
+    if (!unsupportedBehaviors.isEmpty()) {
+      var fieldBehaviors = schema.putArray("x-google-field-behaviors");
+      unsupportedBehaviors.forEach(fieldBehaviors::add);
     }
 
     return schema;

@@ -29,7 +29,7 @@ message ServerConfig {
   // Collection of settings organized by namespace.
   // Each namespace contains key-value pairs representing individual settings.
   // The structure allows for hierarchical organization of configuration values.
-  repeated SettingsNamespace settings = 1;
+  repeated SettingsNamespace settings = 1 [(google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // Request message for GetServerInfo RPC.
