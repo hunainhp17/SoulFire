@@ -100,14 +100,14 @@ public final class MCPService {
       "List all SoulFire instances visible to the current user. Returns instance IDs, names, states, and permissions.",
       Map.of(), List.of(),
       authed((exchange, args) ->
-        grpc(o -> instanceService.listInstances(InstanceListRequest.newBuilder().build(), o)))));
+        MCPService.<InstanceListResponse>grpc(o -> instanceService.listInstances(InstanceListRequest.newBuilder().build(), o)))));
 
     tools.add(tool("create_instance",
       "Create a new SoulFire instance with the given name. Returns the UUID of the new instance.",
       Map.of("friendly_name", prop("string", "Human-readable name for the instance")),
       List.of("friendly_name"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.createInstance(
+        MCPService.<InstanceCreateResponse>grpc(o -> instanceService.createInstance(
           InstanceCreateRequest.newBuilder().setFriendlyName(str(args, "friendly_name")).build(), o)))));
 
     tools.add(tool("delete_instance",
@@ -115,7 +115,7 @@ public final class MCPService {
       Map.of("id", prop("string", "UUID of the instance to delete")),
       List.of("id"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.deleteInstance(
+        MCPService.<InstanceDeleteResponse>grpc(o -> instanceService.deleteInstance(
           InstanceDeleteRequest.newBuilder().setId(str(args, "id")).build(), o)))));
 
     tools.add(tool("get_instance_info",
@@ -123,7 +123,7 @@ public final class MCPService {
       Map.of("id", prop("string", "UUID of the instance")),
       List.of("id"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.getInstanceInfo(
+        MCPService.<InstanceInfoResponse>grpc(o -> instanceService.getInstanceInfo(
           InstanceInfoRequest.newBuilder().setId(str(args, "id")).build(), o)))));
 
     tools.add(tool("update_instance_meta",
@@ -140,7 +140,7 @@ public final class MCPService {
         } else if (args.containsKey("icon")) {
           builder.setIcon(str(args, "icon"));
         }
-        return grpc(o -> instanceService.updateInstanceMeta(builder.build(), o));
+        return MCPService.<InstanceUpdateMetaResponse>grpc(o -> instanceService.updateInstanceMeta(builder.build(), o));
       })));
 
     tools.add(tool("change_instance_state",
@@ -150,7 +150,7 @@ public final class MCPService {
         "state", prop("integer", "Target state: 0=STARTING, 1=RUNNING, 2=PAUSED, 3=STOPPING, 4=STOPPED")),
       List.of("id", "state"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.changeInstanceState(
+        MCPService.<InstanceStateChangeResponse>grpc(o -> instanceService.changeInstanceState(
           InstanceStateChangeRequest.newBuilder()
             .setId(str(args, "id"))
             .setStateValue(num(args, "state"))
@@ -165,7 +165,7 @@ public final class MCPService {
         "value", Map.of("description", "The new value (string, number, boolean, etc.)")),
       List.of("id", "namespace", "key", "value"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.updateInstanceConfigEntry(
+        MCPService.<InstanceUpdateConfigEntryResponse>grpc(o -> instanceService.updateInstanceConfigEntry(
           InstanceUpdateConfigEntryRequest.newBuilder()
             .setId(str(args, "id"))
             .setNamespace(str(args, "namespace"))
@@ -178,7 +178,7 @@ public final class MCPService {
       Map.of("id", prop("string", "UUID of the instance")),
       List.of("id"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.getAuditLog(
+        MCPService.<InstanceAuditLogResponse>grpc(o -> instanceService.getAuditLog(
           InstanceAuditLogRequest.newBuilder().setId(str(args, "id")).build(), o)))));
 
     // === Account Management Tools ===
@@ -191,7 +191,7 @@ public final class MCPService {
       authed((exchange, args) -> {
         var username = str(args, "username");
         var profileId = java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes()).toString();
-        return grpc(o -> instanceService.addInstanceAccount(
+        return MCPService.<InstanceAddAccountResponse>grpc(o -> instanceService.addInstanceAccount(
           InstanceAddAccountRequest.newBuilder()
             .setId(str(args, "id"))
             .setAccount(MinecraftAccountProto.newBuilder()
@@ -210,7 +210,7 @@ public final class MCPService {
         "profile_id", prop("string", "Profile UUID of the account to remove")),
       List.of("id", "profile_id"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.removeInstanceAccount(
+        MCPService.<InstanceRemoveAccountResponse>grpc(o -> instanceService.removeInstanceAccount(
           InstanceRemoveAccountRequest.newBuilder()
             .setId(str(args, "id"))
             .setProfileId(str(args, "profile_id"))
@@ -236,7 +236,7 @@ public final class MCPService {
         if (args.containsKey("password")) {
           proxyBuilder.setPassword(str(args, "password"));
         }
-        return grpc(o -> instanceService.addInstanceProxy(
+        return MCPService.<InstanceAddProxyResponse>grpc(o -> instanceService.addInstanceProxy(
           InstanceAddProxyRequest.newBuilder()
             .setId(str(args, "id"))
             .setProxy(proxyBuilder.build())
@@ -250,7 +250,7 @@ public final class MCPService {
         "index", prop("integer", "Zero-based index of the proxy to remove")),
       List.of("id", "index"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.removeInstanceProxy(
+        MCPService.<InstanceRemoveProxyResponse>grpc(o -> instanceService.removeInstanceProxy(
           InstanceRemoveProxyRequest.newBuilder()
             .setId(str(args, "id"))
             .setIndex(num(args, "index"))
@@ -266,7 +266,7 @@ public final class MCPService {
         "bot_id", prop("string", "Bot profile UUID (required for bot scope)")),
       List.of("command", "scope_type"),
       authed((exchange, args) ->
-        grpc(o -> commandService.executeCommand(
+        MCPService.<CommandResponse>grpc(o -> commandService.executeCommand(
           CommandRequest.newBuilder()
             .setScope(buildCommandScope(args))
             .setCommand(str(args, "command"))
@@ -282,7 +282,7 @@ public final class MCPService {
       List.of("command", "scope_type"),
       authed((exchange, args) -> {
         var cmd = str(args, "command");
-        return grpc(o -> commandService.tabCompleteCommand(
+        return MCPService.<CommandCompletionResponse>grpc(o -> commandService.tabCompleteCommand(
           CommandCompletionRequest.newBuilder()
             .setScope(buildCommandScope(args))
             .setCommand(cmd)
@@ -296,7 +296,7 @@ public final class MCPService {
       Map.of("instance_id", prop("string", "UUID of the instance")),
       List.of("instance_id"),
       authed((exchange, args) ->
-        grpc(o -> botService.getBotList(
+        MCPService.<BotListResponse>grpc(o -> botService.getBotList(
           BotListRequest.newBuilder().setInstanceId(str(args, "instance_id")).build(), o)))));
 
     tools.add(tool("get_bot_info",
@@ -306,7 +306,7 @@ public final class MCPService {
         "bot_id", prop("string", "Profile UUID of the bot")),
       List.of("instance_id", "bot_id"),
       authed((exchange, args) ->
-        grpc(o -> botService.getBotInfo(
+        MCPService.<BotInfoResponse>grpc(o -> botService.getBotInfo(
           BotInfoRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setBotId(str(args, "bot_id"))
@@ -318,7 +318,7 @@ public final class MCPService {
       Map.of("instance_id", prop("string", "UUID of the instance")),
       List.of("instance_id"),
       authed((exchange, args) ->
-        grpc(o -> automationService.getAutomationTeamState(
+        MCPService.<GetAutomationTeamStateResponse>grpc(o -> automationService.getAutomationTeamState(
           GetAutomationTeamStateRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .build(), o)))));
@@ -333,7 +333,7 @@ public final class MCPService {
         var builder = GetAutomationCoordinationStateRequest.newBuilder()
           .setInstanceId(str(args, "instance_id"));
         ifPresent(args, "max_entries", value -> builder.setMaxEntries(((Number) value).intValue()));
-        return grpc(o -> automationService.getAutomationCoordinationState(builder.build(), o));
+        return MCPService.<GetAutomationCoordinationStateResponse>grpc(o -> automationService.getAutomationCoordinationState(builder.build(), o));
       })));
 
     tools.add(tool("get_automation_bot_state",
@@ -343,7 +343,7 @@ public final class MCPService {
         "bot_id", prop("string", "UUID of the bot")),
       List.of("instance_id", "bot_id"),
       authed((exchange, args) ->
-        grpc(o -> automationService.getAutomationBotState(
+        MCPService.<GetAutomationBotStateResponse>grpc(o -> automationService.getAutomationBotState(
           GetAutomationBotStateRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setBotId(str(args, "bot_id"))
@@ -361,7 +361,7 @@ public final class MCPService {
           .setInstanceId(str(args, "instance_id"))
           .setBotId(str(args, "bot_id"));
         ifPresent(args, "max_entries", value -> builder.setMaxEntries(((Number) value).intValue()));
-        return grpc(o -> automationService.getAutomationMemoryState(builder.build(), o));
+        return MCPService.<GetAutomationMemoryStateResponse>grpc(o -> automationService.getAutomationMemoryState(builder.build(), o));
       })));
 
     tools.add(tool("start_automation_beat",
@@ -374,7 +374,7 @@ public final class MCPService {
         var builder = AutomationActionRequest.newBuilder()
           .setInstanceId(str(args, "instance_id"));
         ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
-        return grpc(o -> automationService.startAutomationBeat(builder.build(), o));
+        return MCPService.<AutomationActionResponse>grpc(o -> automationService.startAutomationBeat(builder.build(), o));
       })));
 
     tools.add(tool("start_automation_acquire",
@@ -391,7 +391,7 @@ public final class MCPService {
           .setTarget(str(args, "target"))
           .setCount(num(args, "count"));
         ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
-        return grpc(o -> automationService.startAutomationAcquire(builder.build(), o));
+        return MCPService.<AutomationActionResponse>grpc(o -> automationService.startAutomationAcquire(builder.build(), o));
       })));
 
     tools.add(tool("pause_automation",
@@ -404,7 +404,7 @@ public final class MCPService {
         var builder = AutomationActionRequest.newBuilder()
           .setInstanceId(str(args, "instance_id"));
         ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
-        return grpc(o -> automationService.pauseAutomation(builder.build(), o));
+        return MCPService.<AutomationActionResponse>grpc(o -> automationService.pauseAutomation(builder.build(), o));
       })));
 
     tools.add(tool("resume_automation",
@@ -417,7 +417,7 @@ public final class MCPService {
         var builder = AutomationActionRequest.newBuilder()
           .setInstanceId(str(args, "instance_id"));
         ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
-        return grpc(o -> automationService.resumeAutomation(builder.build(), o));
+        return MCPService.<AutomationActionResponse>grpc(o -> automationService.resumeAutomation(builder.build(), o));
       })));
 
     tools.add(tool("stop_automation",
@@ -430,7 +430,7 @@ public final class MCPService {
         var builder = AutomationActionRequest.newBuilder()
           .setInstanceId(str(args, "instance_id"));
         ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
-        return grpc(o -> automationService.stopAutomation(builder.build(), o));
+        return MCPService.<AutomationActionResponse>grpc(o -> automationService.stopAutomation(builder.build(), o));
       })));
 
     tools.add(tool("apply_automation_preset",
@@ -445,7 +445,7 @@ public final class MCPService {
           .setInstanceId(str(args, "instance_id"))
           .setPreset(AutomationPreset.valueOf("AUTOMATION_PRESET_" + str(args, "preset").trim().toUpperCase().replace('-', '_')));
         ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
-        return grpc(o -> automationService.applyAutomationPreset(builder.build(), o));
+        return MCPService.<ApplyAutomationPresetResponse>grpc(o -> automationService.applyAutomationPreset(builder.build(), o));
       })));
 
     tools.add(tool("set_automation_collaboration",
@@ -455,7 +455,7 @@ public final class MCPService {
         "enabled", prop("boolean", "Whether team collaboration should be enabled")),
       List.of("instance_id", "enabled"),
       authed((exchange, args) ->
-        grpc(o -> automationService.setAutomationCollaboration(
+        MCPService.<SetAutomationCollaborationResponse>grpc(o -> automationService.setAutomationCollaboration(
           SetAutomationCollaborationRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setEnabled(bool(args, "enabled"))
@@ -468,7 +468,7 @@ public final class MCPService {
         "role_policy", prop("string", "One of: static-team, independent")),
       List.of("instance_id", "role_policy"),
       authed((exchange, args) ->
-        grpc(o -> automationService.setAutomationRolePolicy(
+        MCPService.<SetAutomationRolePolicyResponse>grpc(o -> automationService.setAutomationRolePolicy(
           SetAutomationRolePolicyRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setRolePolicy(parseAutomationRolePolicy(str(args, "role_policy")))
@@ -481,7 +481,7 @@ public final class MCPService {
         "enabled", prop("boolean", "Whether shared structure intelligence should be enabled")),
       List.of("instance_id", "enabled"),
       authed((exchange, args) ->
-        grpc(o -> automationService.setAutomationSharedStructures(
+        MCPService.<SetAutomationSharedStructuresResponse>grpc(o -> automationService.setAutomationSharedStructures(
           SetAutomationSharedStructuresRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setEnabled(bool(args, "enabled"))
@@ -494,7 +494,7 @@ public final class MCPService {
         "enabled", prop("boolean", "Whether shared target claims should be enabled")),
       List.of("instance_id", "enabled"),
       authed((exchange, args) ->
-        grpc(o -> automationService.setAutomationSharedClaims(
+        MCPService.<SetAutomationSharedClaimsResponse>grpc(o -> automationService.setAutomationSharedClaims(
           SetAutomationSharedClaimsRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setEnabled(bool(args, "enabled"))
@@ -507,7 +507,7 @@ public final class MCPService {
         "enabled", prop("boolean", "Whether shared End-entry throttling should be enabled")),
       List.of("instance_id", "enabled"),
       authed((exchange, args) ->
-        grpc(o -> automationService.setAutomationSharedEndEntry(
+        MCPService.<SetAutomationSharedEndEntryResponse>grpc(o -> automationService.setAutomationSharedEndEntry(
           SetAutomationSharedEndEntryRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setEnabled(bool(args, "enabled"))
@@ -520,7 +520,7 @@ public final class MCPService {
         "max_end_bots", prop("integer", "Maximum number of bots allowed in the End concurrently (1-32)")),
       List.of("instance_id", "max_end_bots"),
       authed((exchange, args) ->
-        grpc(o -> automationService.setAutomationMaxEndBots(
+        MCPService.<SetAutomationMaxEndBotsResponse>grpc(o -> automationService.setAutomationMaxEndBots(
           SetAutomationMaxEndBotsRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setMaxEndBots(num(args, "max_end_bots"))
@@ -534,7 +534,7 @@ public final class MCPService {
         "target_count", prop("integer", "Override target count. Use 0 to restore automatic behavior.")),
       List.of("instance_id", "requirement_key", "target_count"),
       authed((exchange, args) ->
-        grpc(o -> automationService.setAutomationQuotaOverride(
+        MCPService.<SetAutomationQuotaOverrideResponse>grpc(o -> automationService.setAutomationQuotaOverride(
           SetAutomationQuotaOverrideRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setRequirementKey(str(args, "requirement_key"))
@@ -548,7 +548,7 @@ public final class MCPService {
         "objective", prop("string", "One of: auto, bootstrap, nether-progress, stronghold-hunt, end-assault, complete")),
       List.of("instance_id", "objective"),
       authed((exchange, args) ->
-        grpc(o -> automationService.setAutomationObjectiveOverride(
+        MCPService.<SetAutomationObjectiveOverrideResponse>grpc(o -> automationService.setAutomationObjectiveOverride(
           SetAutomationObjectiveOverrideRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setObjective(parseAutomationObjective(str(args, "objective")))
@@ -566,7 +566,7 @@ public final class MCPService {
           .setInstanceId(str(args, "instance_id"))
           .setRole(parseAutomationRole(str(args, "role")));
         ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
-        return grpc(o -> automationService.setAutomationRoleOverride(builder.build(), o));
+        return MCPService.<SetAutomationRoleOverrideResponse>grpc(o -> automationService.setAutomationRoleOverride(builder.build(), o));
       })));
 
     tools.add(tool("update_automation_bot_settings",
@@ -593,7 +593,7 @@ public final class MCPService {
         ifPresent(args, "retreat_health_threshold", ignored -> builder.setRetreatHealthThreshold(num(args, "retreat_health_threshold")));
         ifPresent(args, "retreat_food_threshold", ignored -> builder.setRetreatFoodThreshold(num(args, "retreat_food_threshold")));
         ifPresent(args, "role_override", ignored -> builder.setRoleOverride(parseAutomationRole(str(args, "role_override"))));
-        return grpc(o -> automationService.updateAutomationBotSettings(builder.build(), o));
+        return MCPService.<UpdateAutomationBotSettingsResponse>grpc(o -> automationService.updateAutomationBotSettings(builder.build(), o));
       })));
 
     tools.add(tool("reset_automation_memory",
@@ -606,7 +606,7 @@ public final class MCPService {
         var builder = ResetAutomationMemoryRequest.newBuilder()
           .setInstanceId(str(args, "instance_id"));
         ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
-        return grpc(o -> automationService.resetAutomationMemory(builder.build(), o));
+        return MCPService.<ResetAutomationMemoryResponse>grpc(o -> automationService.resetAutomationMemory(builder.build(), o));
       })));
 
     tools.add(tool("reset_automation_coordination_state",
@@ -614,7 +614,7 @@ public final class MCPService {
       Map.of("instance_id", prop("string", "UUID of the instance")),
       List.of("instance_id"),
       authed((exchange, args) ->
-        grpc(o -> automationService.resetAutomationCoordinationState(
+        MCPService.<ResetAutomationCoordinationStateResponse>grpc(o -> automationService.resetAutomationCoordinationState(
           ResetAutomationCoordinationStateRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .build(), o)))));
@@ -626,7 +626,7 @@ public final class MCPService {
         "key", prop("string", "Exact claim key from coordination state inspection")),
       List.of("instance_id", "key"),
       authed((exchange, args) ->
-        grpc(o -> automationService.releaseAutomationClaim(
+        MCPService.<ReleaseAutomationClaimResponse>grpc(o -> automationService.releaseAutomationClaim(
           ReleaseAutomationClaimRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setKey(str(args, "key"))
@@ -642,7 +642,7 @@ public final class MCPService {
         var builder = ReleaseAutomationBotClaimsRequest.newBuilder()
           .setInstanceId(str(args, "instance_id"));
         ifPresent(args, "bot_ids", ignored -> builder.addAllBotIds(strList(args, "bot_ids")));
-        return grpc(o -> automationService.releaseAutomationBotClaims(builder.build(), o));
+        return MCPService.<ReleaseAutomationBotClaimsResponse>grpc(o -> automationService.releaseAutomationBotClaims(builder.build(), o));
       })));
 
     tools.add(tool("set_bot_movement",
@@ -669,7 +669,7 @@ public final class MCPService {
         ifPresent(args, "jump", v -> builder.setJump((Boolean) v));
         ifPresent(args, "sneak", v -> builder.setSneak((Boolean) v));
         ifPresent(args, "sprint", v -> builder.setSprint((Boolean) v));
-        return grpc(o -> botService.setMovementState(builder.build(), o));
+        return MCPService.<BotSetMovementStateResponse>grpc(o -> botService.setMovementState(builder.build(), o));
       })));
 
     tools.add(tool("reset_bot_movement",
@@ -679,7 +679,7 @@ public final class MCPService {
         "bot_id", prop("string", "Profile UUID of the bot")),
       List.of("instance_id", "bot_id"),
       authed((exchange, args) ->
-        grpc(o -> botService.resetMovement(
+        MCPService.<BotResetMovementResponse>grpc(o -> botService.resetMovement(
           BotResetMovementRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setBotId(str(args, "bot_id"))
@@ -694,7 +694,7 @@ public final class MCPService {
         "pitch", prop("number", "Vertical rotation in degrees (-90 to 90)")),
       List.of("instance_id", "bot_id", "yaw", "pitch"),
       authed((exchange, args) ->
-        grpc(o -> botService.setRotation(
+        MCPService.<BotSetRotationResponse>grpc(o -> botService.setRotation(
           BotSetRotationRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setBotId(str(args, "bot_id"))
@@ -710,7 +710,7 @@ public final class MCPService {
         "slot", prop("integer", "Hotbar slot index (0-8)")),
       List.of("instance_id", "bot_id", "slot"),
       authed((exchange, args) ->
-        grpc(o -> botService.setHotbarSlot(
+        MCPService.<BotSetHotbarSlotResponse>grpc(o -> botService.setHotbarSlot(
           BotSetHotbarSlotRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setBotId(str(args, "bot_id"))
@@ -726,7 +726,7 @@ public final class MCPService {
         "click_type", prop("string", "Click type: LEFT_CLICK, RIGHT_CLICK, SHIFT_LEFT_CLICK, SHIFT_RIGHT_CLICK, DROP, DROP_ALL, SWAP_HOTBAR")),
       List.of("instance_id", "bot_id", "slot", "click_type"),
       authed((exchange, args) ->
-        grpc(o -> botService.clickInventorySlot(
+        MCPService.<BotInventoryClickResponse>grpc(o -> botService.clickInventorySlot(
           BotInventoryClickRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setBotId(str(args, "bot_id"))
@@ -741,7 +741,7 @@ public final class MCPService {
         "bot_id", prop("string", "Profile UUID of the bot")),
       List.of("instance_id", "bot_id"),
       authed((exchange, args) ->
-        grpc(o -> botService.getInventoryState(
+        MCPService.<BotInventoryStateResponse>grpc(o -> botService.getInventoryState(
           BotInventoryStateRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setBotId(str(args, "bot_id"))
@@ -754,7 +754,7 @@ public final class MCPService {
         "bot_id", prop("string", "Profile UUID of the bot")),
       List.of("instance_id", "bot_id"),
       authed((exchange, args) ->
-        grpc(o -> botService.openInventory(
+        MCPService.<BotOpenInventoryResponse>grpc(o -> botService.openInventory(
           BotOpenInventoryRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setBotId(str(args, "bot_id"))
@@ -767,7 +767,7 @@ public final class MCPService {
         "bot_id", prop("string", "Profile UUID of the bot")),
       List.of("instance_id", "bot_id"),
       authed((exchange, args) ->
-        grpc(o -> botService.closeContainer(
+        MCPService.<BotCloseContainerResponse>grpc(o -> botService.closeContainer(
           BotCloseContainerRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setBotId(str(args, "bot_id"))
@@ -778,7 +778,7 @@ public final class MCPService {
       "Get server-level configuration, settings definitions, settings pages, and registered plugins.",
       Map.of(), List.of(),
       authed((exchange, args) ->
-        grpc(o -> serverService.getServerInfo(ServerInfoRequest.newBuilder().build(), o)))));
+        MCPService.<ServerInfoResponse>grpc(o -> serverService.getServerInfo(ServerInfoRequest.newBuilder().build(), o)))));
 
     tools.add(tool("update_server_config_entry",
       "Update a single server configuration entry by namespace and key.",
@@ -788,7 +788,7 @@ public final class MCPService {
         "value", Map.of("description", "The new value")),
       List.of("namespace", "key", "value"),
       authed((exchange, args) ->
-        grpc(o -> serverService.updateServerConfigEntry(
+        MCPService.<ServerUpdateConfigEntryResponse>grpc(o -> serverService.updateServerConfigEntry(
           ServerUpdateConfigEntryRequest.newBuilder()
             .setNamespace(str(args, "namespace"))
             .setKey(str(args, "key"))
@@ -800,7 +800,7 @@ public final class MCPService {
       "List all users in the SoulFire system.",
       Map.of(), List.of(),
       authed((exchange, args) ->
-        grpc(o -> userService.listUsers(UserListRequest.newBuilder().build(), o)))));
+        MCPService.<UserListResponse>grpc(o -> userService.listUsers(UserListRequest.newBuilder().build(), o)))));
 
     tools.add(tool("create_user",
       "Create a new user account.",
@@ -810,7 +810,7 @@ public final class MCPService {
         "role", prop("string", "Role: ADMIN or USER")),
       List.of("username", "email", "role"),
       authed((exchange, args) ->
-        grpc(o -> userService.createUser(
+        MCPService.<UserCreateResponse>grpc(o -> userService.createUser(
           UserCreateRequest.newBuilder()
             .setUsername(str(args, "username"))
             .setEmail(str(args, "email"))
@@ -822,7 +822,7 @@ public final class MCPService {
       Map.of("id", prop("string", "UUID of the user to delete")),
       List.of("id"),
       authed((exchange, args) ->
-        grpc(o -> userService.deleteUser(
+        MCPService.<UserDeleteResponse>grpc(o -> userService.deleteUser(
           UserDeleteRequest.newBuilder().setId(str(args, "id")).build(), o)))));
 
     tools.add(tool("get_user_info",
@@ -830,7 +830,7 @@ public final class MCPService {
       Map.of("id", prop("string", "UUID of the user")),
       List.of("id"),
       authed((exchange, args) ->
-        grpc(o -> userService.getUserInfo(
+        MCPService.<UserInfoResponse>grpc(o -> userService.getUserInfo(
           UserInfoRequest.newBuilder().setId(str(args, "id")).build(), o)))));
 
     tools.add(tool("generate_user_api_token",
@@ -838,7 +838,7 @@ public final class MCPService {
       Map.of("id", prop("string", "UUID of the user")),
       List.of("id"),
       authed((exchange, args) ->
-        grpc(o -> userService.generateUserAPIToken(
+        MCPService.<GenerateUserAPITokenResponse>grpc(o -> userService.generateUserAPIToken(
           GenerateUserAPITokenRequest.newBuilder().setId(str(args, "id")).build(), o)))));
 
     // === Client/Self Tools ===
@@ -846,13 +846,13 @@ public final class MCPService {
       "Get information about the currently authenticated user including permissions and server info.",
       Map.of(), List.of(),
       authed((exchange, args) ->
-        grpc(o -> clientService.getClientData(ClientDataRequest.newBuilder().build(), o)))));
+        MCPService.<ClientDataResponse>grpc(o -> clientService.getClientData(ClientDataRequest.newBuilder().build(), o)))));
 
     tools.add(tool("generate_api_token",
       "Generate a new API token for the current user.",
       Map.of(), List.of(),
       authed((exchange, args) ->
-        grpc(o -> clientService.generateAPIToken(GenerateAPITokenRequest.newBuilder().build(), o)))));
+        MCPService.<GenerateAPITokenResponse>grpc(o -> clientService.generateAPIToken(GenerateAPITokenRequest.newBuilder().build(), o)))));
 
     // === Metrics Tools ===
     tools.add(tool("get_instance_metrics",
@@ -860,14 +860,14 @@ public final class MCPService {
       Map.of("instance_id", prop("string", "UUID of the instance")),
       List.of("instance_id"),
       authed((exchange, args) ->
-        grpc(o -> metricsService.getInstanceMetrics(
+        MCPService.<GetInstanceMetricsResponse>grpc(o -> metricsService.getInstanceMetrics(
           GetInstanceMetricsRequest.newBuilder().setInstanceId(str(args, "instance_id")).build(), o)))));
 
     tools.add(tool("get_server_metrics",
       "Get server-level system metrics including CPU, memory, threads, GC, and aggregate bot statistics.",
       Map.of(), List.of(),
       authed((exchange, args) ->
-        grpc(o -> metricsService.getServerMetrics(GetServerMetricsRequest.newBuilder().build(), o)))));
+        MCPService.<GetServerMetricsResponse>grpc(o -> metricsService.getServerMetrics(GetServerMetricsRequest.newBuilder().build(), o)))));
 
     // === Logs Tools ===
     tools.add(tool("get_previous_logs",
@@ -879,7 +879,7 @@ public final class MCPService {
         "count", prop("integer", "Number of log entries to retrieve (max 300)")),
       List.of("scope_type", "count"),
       authed((exchange, args) ->
-        grpc(o -> logService.getPrevious(
+        MCPService.<PreviousLogResponse>grpc(o -> logService.getPrevious(
           PreviousLogRequest.newBuilder()
             .setScope(buildLogScope(args))
             .setCount(num(args, "count"))
@@ -891,7 +891,7 @@ public final class MCPService {
       Map.of("instance_id", prop("string", "UUID of the instance")),
       List.of("instance_id"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.getInstanceMetadata(
+        MCPService.<GetInstanceMetadataResponse>grpc(o -> instanceService.getInstanceMetadata(
           GetInstanceMetadataRequest.newBuilder().setInstanceId(str(args, "instance_id")).build(), o)))));
 
     tools.add(tool("set_instance_metadata_entry",
@@ -903,7 +903,7 @@ public final class MCPService {
         "value", Map.of("description", "The value to set")),
       List.of("instance_id", "namespace", "key", "value"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.setInstanceMetadataEntry(
+        MCPService.<SetInstanceMetadataEntryResponse>grpc(o -> instanceService.setInstanceMetadataEntry(
           SetInstanceMetadataEntryRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setNamespace(str(args, "namespace"))
@@ -919,7 +919,7 @@ public final class MCPService {
         "key", prop("string", "Metadata key")),
       List.of("instance_id", "namespace", "key"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.deleteInstanceMetadataEntry(
+        MCPService.<DeleteInstanceMetadataEntryResponse>grpc(o -> instanceService.deleteInstanceMetadataEntry(
           DeleteInstanceMetadataEntryRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setNamespace(str(args, "namespace"))
@@ -934,7 +934,7 @@ public final class MCPService {
         "account_id", prop("string", "Profile UUID of the account")),
       List.of("instance_id", "account_id"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.getAccountMetadata(
+        MCPService.<GetAccountMetadataResponse>grpc(o -> instanceService.getAccountMetadata(
           GetAccountMetadataRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setAccountId(str(args, "account_id"))
@@ -950,7 +950,7 @@ public final class MCPService {
         "value", Map.of("description", "The value to set")),
       List.of("instance_id", "account_id", "namespace", "key", "value"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.setAccountMetadataEntry(
+        MCPService.<SetAccountMetadataEntryResponse>grpc(o -> instanceService.setAccountMetadataEntry(
           SetAccountMetadataEntryRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setAccountId(str(args, "account_id"))
@@ -968,7 +968,7 @@ public final class MCPService {
         "key", prop("string", "Metadata key")),
       List.of("instance_id", "account_id", "namespace", "key"),
       authed((exchange, args) ->
-        grpc(o -> instanceService.deleteAccountMetadataEntry(
+        MCPService.<DeleteAccountMetadataEntryResponse>grpc(o -> instanceService.deleteAccountMetadataEntry(
           DeleteAccountMetadataEntryRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setAccountId(str(args, "account_id"))
@@ -983,7 +983,7 @@ public final class MCPService {
       Map.of("instance_id", prop("string", "UUID of the instance")),
       List.of("instance_id"),
       authed((exchange, args) ->
-        grpc(o -> scriptService.listScripts(
+        MCPService.<ListScriptsResponse>grpc(o -> scriptService.listScripts(
           ListScriptsRequest.newBuilder().setInstanceId(str(args, "instance_id")).build(), o)))));
 
     tools.add(tool("get_script",
@@ -993,7 +993,7 @@ public final class MCPService {
         "script_id", prop("string", "UUID of the script")),
       List.of("instance_id", "script_id"),
       authed((exchange, args) ->
-        grpc(o -> scriptService.getScript(
+        MCPService.<GetScriptResponse>grpc(o -> scriptService.getScript(
           GetScriptRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setScriptId(str(args, "script_id"))
@@ -1006,7 +1006,7 @@ public final class MCPService {
         "script_id", prop("string", "UUID of the script")),
       List.of("instance_id", "script_id"),
       authed((exchange, args) ->
-        grpc(o -> scriptService.deleteScript(
+        MCPService.<DeleteScriptResponse>grpc(o -> scriptService.deleteScript(
           DeleteScriptRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setScriptId(str(args, "script_id"))
@@ -1019,7 +1019,7 @@ public final class MCPService {
         "script_id", prop("string", "UUID of the script")),
       List.of("instance_id", "script_id"),
       authed((exchange, args) ->
-        grpc(o -> scriptService.deactivateScript(
+        MCPService.<DeactivateScriptResponse>grpc(o -> scriptService.deactivateScript(
           DeactivateScriptRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setScriptId(str(args, "script_id"))
@@ -1032,7 +1032,7 @@ public final class MCPService {
         "script_id", prop("string", "UUID of the script")),
       List.of("instance_id", "script_id"),
       authed((exchange, args) ->
-        grpc(o -> scriptService.getScriptStatus(
+        MCPService.<GetScriptStatusResponse>grpc(o -> scriptService.getScriptStatus(
           GetScriptStatusRequest.newBuilder()
             .setInstanceId(str(args, "instance_id"))
             .setScriptId(str(args, "script_id"))
@@ -1042,7 +1042,7 @@ public final class MCPService {
       "Get all available script node types with their metadata, ports, and categories.",
       Map.of(), List.of(),
       authed((exchange, args) ->
-        grpc(o -> scriptService.getNodeTypes(GetNodeTypesRequest.newBuilder().build(), o)))));
+        MCPService.<GetNodeTypesResponse>grpc(o -> scriptService.getNodeTypes(GetNodeTypesRequest.newBuilder().build(), o)))));
 
     tools.add(tool("get_registry_data",
       "Get Minecraft registry data (blocks, entities, items, biomes) for use in scripts.",
@@ -1053,7 +1053,7 @@ public final class MCPService {
         if (args.containsKey("registry")) {
           builder.setRegistry(str(args, "registry"));
         }
-        return grpc(o -> scriptService.getRegistryData(builder.build(), o));
+        return MCPService.<GetRegistryDataResponse>grpc(o -> scriptService.getRegistryData(builder.build(), o));
       })));
 
     // Build the MCP server
@@ -1187,12 +1187,13 @@ public final class MCPService {
     };
   }
 
-  @SuppressWarnings({"unchecked", "rawtypes", "deprecation"})
-  private static Mono<McpSchema.CallToolResult> grpc(Consumer<StreamObserver> grpcCall) {
+  @SuppressWarnings("deprecation")
+  private static <T extends MessageOrBuilder> Mono<McpSchema.CallToolResult> grpc(
+    Consumer<StreamObserver<T>> grpcCall) {
     return Mono.create(sink -> {
-      StreamObserver observer = new StreamObserver<MessageOrBuilder>() {
+      StreamObserver<T> observer = new StreamObserver<>() {
         @Override
-        public void onNext(MessageOrBuilder value) {
+        public void onNext(T value) {
           try {
             var json = JsonFormat.printer().includingDefaultValueFields().print(value);
             sink.success(new McpSchema.CallToolResult(List.of(new McpSchema.TextContent(json)), false, null, Map.of()));
