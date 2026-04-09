@@ -52,7 +52,7 @@ jobs:
           configurationJson: |
             {
               "template": "#{{CHANGELOG}}",
-              "commit_template": "- [`#{{SHORT_MERGE_SHA}}`](https://github.com/AlexProgrammerDE/SoulFire/commit/#{{MERGE_SHA}}) #{{TITLE}}",
+              "commit_template": "- [`#{{SHORT_MERGE_SHA}}`](https://github.com/soulfiremc-com/SoulFire/commit/#{{MERGE_SHA}}) #{{TITLE}}",
               "categories": [
                 {
                     "title": "## 🚀 Features",
@@ -125,7 +125,7 @@ jobs:
             > [!IMPORTANT]
             > These downloads are for users who want to host Dedicated Servers for SoulFire clients or use the CLI client of SoulFire.
             > This is not the right download if you want to use the GUI client for SoulFire, which is recommended for most users.
-            > Instead you should look at the [SoulFireClient releases page](https://github.com/AlexProgrammerDE/SoulFireClient/releases).
+            > Instead you should look at the [SoulFireClient releases page](https://github.com/soulfiremc-com/SoulFireClient/releases).
             ---
 
             ${{ steps.github_release.outputs.changelog }}
@@ -147,7 +147,7 @@ jobs:
           webhook-url: ${{ secrets.WEBHOOK_URL }}
           content: <@&850705047938793503> New SoulFire version released!
           embed-title: SoulFire ${{ inputs.version }}
-          embed-description: SoulFire ${{ inputs.version }} has been released! Changelog and download can be found at https://github.com/AlexProgrammerDE/SoulFire/releases/tag/${{ inputs.version }}
+          embed-description: SoulFire ${{ inputs.version }} has been released! Changelog and download can be found at https://github.com/soulfiremc-com/SoulFire/releases/tag/${{ inputs.version }}
           embed-color: 3312063
           embed-thumbnail-url: https://soulfiremc.com/logo.png
 

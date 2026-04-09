@@ -41,17 +41,17 @@ fun PublishingExtension.applyMainPublishing(project: Project) {
           }
         }
         scm {
-          connection = "scm:git:https://github.com/AlexProgrammerDE/SoulFire.git"
-          developerConnection = "scm:git:ssh://git@github.com/AlexProgrammerDE/SoulFire.git"
-          url = "https://github.com/AlexProgrammerDE/SoulFire"
+          connection = "scm:git:https://github.com/soulfiremc-com/SoulFire.git"
+          developerConnection = "scm:git:ssh://git@github.com/soulfiremc-com/SoulFire.git"
+          url = "https://github.com/soulfiremc-com/SoulFire"
         }
         ciManagement {
           system = "GitHub Actions"
-          url = "https://github.com/AlexProgrammerDE/SoulFire/actions"
+          url = "https://github.com/soulfiremc-com/SoulFire/actions"
         }
         issueManagement {
           system = "GitHub"
-          url = "https://github.com/AlexProgrammerDE/SoulFire/issues"
+          url = "https://github.com/soulfiremc-com/SoulFire/issues"
         }
       }
     }

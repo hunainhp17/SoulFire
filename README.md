@@ -1,4 +1,4 @@
-<img align="right" src="https://github.com/AlexProgrammerDE/SoulFire/blob/main/mod/src/main/resources/icons/icon.png?raw=true" height="150" width="150">
+<img align="right" src="https://github.com/soulfiremc-com/SoulFire/blob/main/mod/src/main/resources/icons/icon.png?raw=true" height="150" width="150">
 
 [![discord](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/social/discord-singular_vector.svg)](https://discord.gg/vHgRd6YZmH) [![kofi](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/donate/kofi-singular_vector.svg)](https://ko-fi.com/alexprogrammerde)
 
@@ -6,7 +6,7 @@
 
 Advanced Minecraft Bot Tool. Deploy automated bots for server testing, automation, and development.
 
-This repository only contains the CLI and server implementation. The official GUI client is in [another repository](https://github.com/AlexProgrammerDE/SoulFireClient).
+This repository only contains the CLI and server implementation. The official GUI client is in [another repository](https://github.com/soulfiremc-com/SoulFireClient).
 
 ---
 
@@ -94,7 +94,7 @@ The software may regularly have breaking changes, so you'll have to stick to a v
 regularly.
 
 To learn more about the Developer API, take a look at the
-official [plugin example](https://github.com/AlexProgrammerDE/SoulFirePluginExample).
+official [plugin example](https://github.com/soulfiremc-com/SoulFirePluginExample).
 
 ## 🌈 Community
 

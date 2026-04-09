@@ -55,7 +55,7 @@ jobs:
             ghcr.io/alexprogrammerde/soulfire:latest
             ghcr.io/alexprogrammerde/soulfire:${{ steps.get-version.outputs.version }}
           annotations: |
-            index:org.opencontainers.image.source=https://github.com/AlexProgrammerDE/SoulFire
+            index:org.opencontainers.image.source=https://github.com/soulfiremc-com/SoulFire
             index:org.opencontainers.image.description=Advanced Minecraft Bot Tool. Deploy bots for testing, automation, and server development.
             index:org.opencontainers.image.licenses=AGPL-3.0-only
             index:org.opencontainers.image.title=SoulFire

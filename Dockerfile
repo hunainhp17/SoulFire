@@ -10,7 +10,7 @@ RUN groupadd --gid 1001 soulfire && \
     chmod 755 /soulfire
 
 # Download JAR from GitHub releases
-ADD --chown=soulfire:soulfire https://github.com/AlexProgrammerDE/SoulFire/releases/download/${VERSION}/SoulFireDedicated-${VERSION}.jar /soulfire/soulfire.jar
+ADD --chown=soulfire:soulfire https://github.com/soulfiremc-com/SoulFire/releases/download/${VERSION}/SoulFireDedicated-${VERSION}.jar /soulfire/soulfire.jar
 RUN chmod 644 /soulfire/soulfire.jar
 
 # Use the soulfire's home directory as our work directory
@@ -27,7 +27,7 @@ USER soulfire
 
 EXPOSE 38765/tcp
 
-LABEL org.opencontainers.image.source="https://github.com/AlexProgrammerDE/SoulFire" \
+LABEL org.opencontainers.image.source="https://github.com/soulfiremc-com/SoulFire" \
       org.opencontainers.image.description="SoulFire Dedicated Server" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.title="SoulFire" \
