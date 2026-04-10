@@ -90,6 +90,9 @@ public record MinecraftAccount(
       case OnlineSimpleJavaData onlineSimpleJavaData -> () -> builder.setOnlineSimpleJavaData(onlineSimpleJavaData.toProto());
     });
 
+    // Preserve per-account bot settings when instance config is serialized back to protobuf.
+    builder.addAllConfig(SettingsSource.Stem.mapToSettingsNamespaceProto(settings));
+
     // Add persistent metadata
     builder.addAllPersistentMetadata(SettingsSource.Stem.mapToSettingsNamespaceProto(persistentMetadata));
 
