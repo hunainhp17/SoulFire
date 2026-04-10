@@ -17,7 +17,7 @@
  */
 package com.soulfiremc.server.grpc;
 
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.linecorp.armeria.common.*;
@@ -39,7 +39,7 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 public final class OpenApiService implements HttpService {
   private static final ObjectMapper JSON_MAPPER = JsonMapper.builder()
-    .serializationInclusion(Include.NON_NULL)
+    .defaultPropertyInclusion(JsonInclude.Value.ALL_NON_NULL)
     .build();
 
   private final SoulFireServer soulFireServer;
