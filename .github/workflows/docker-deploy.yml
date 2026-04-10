@@ -52,8 +52,8 @@ jobs:
           tags: |
             alexprogrammerde/soulfire:latest
             alexprogrammerde/soulfire:${{ steps.get-version.outputs.version }}
-            ghcr.io/alexprogrammerde/soulfire:latest
-            ghcr.io/alexprogrammerde/soulfire:${{ steps.get-version.outputs.version }}
+            ghcr.io/soulfiremc-com/soulfire:latest
+            ghcr.io/soulfiremc-com/soulfire:${{ steps.get-version.outputs.version }}
           annotations: |
             index:org.opencontainers.image.source=https://github.com/soulfiremc-com/SoulFire
             index:org.opencontainers.image.description=Advanced Minecraft Bot Tool. Deploy bots for testing, automation, and server development.
