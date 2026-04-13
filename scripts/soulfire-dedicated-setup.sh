@@ -16,6 +16,8 @@ SSL_MODE=""
 TUNNEL_TOKEN=""
 DOMAIN=""
 EMAIL=""
+BUILTIN_ROOT_DEFAULT_EMAIL="root@soulfiremc.com"
+SF_ROOT_DEFAULT_EMAIL="${SF_ROOT_DEFAULT_EMAIL:-}"
 PUBLIC_IP=""
 RECOMMENDED_ACCESS_MODE=""
 
@@ -414,6 +416,7 @@ load_existing_config() {
   SSL_MODE=""
   DOMAIN=""
   EMAIL=""
+  SF_ROOT_DEFAULT_EMAIL=""
   PUBLIC_IP=""
   TUNNEL_TOKEN=""
 
@@ -443,6 +446,9 @@ services:
     restart: always
     stdin_open: true
     tty: true
+    environment:
+      SF_JVM_FLAGS: ${SF_JVM_FLAGS:-}
+      SF_ROOT_DEFAULT_EMAIL: ${SF_ROOT_DEFAULT_EMAIL:-}
     volumes:
       - app_data:/soulfire/data
 
@@ -467,6 +473,9 @@ services:
     restart: always
     stdin_open: true
     tty: true
+    environment:
+      SF_JVM_FLAGS: ${SF_JVM_FLAGS:-}
+      SF_ROOT_DEFAULT_EMAIL: ${SF_ROOT_DEFAULT_EMAIL:-}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.soulfire.rule=Host(`${DOMAIN}`)"
@@ -511,6 +520,9 @@ services:
     restart: always
     stdin_open: true
     tty: true
+    environment:
+      SF_JVM_FLAGS: ${SF_JVM_FLAGS:-}
+      SF_ROOT_DEFAULT_EMAIL: ${SF_ROOT_DEFAULT_EMAIL:-}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.soulfire.rule=Host(`${PUBLIC_IP}`)"
@@ -561,6 +573,9 @@ services:
     restart: always
     stdin_open: true
     tty: true
+    environment:
+      SF_JVM_FLAGS: ${SF_JVM_FLAGS:-}
+      SF_ROOT_DEFAULT_EMAIL: ${SF_ROOT_DEFAULT_EMAIL:-}
     ports:
       - "38765:38765"
     volumes:
@@ -591,7 +606,7 @@ write_compose_file() {
 }
 
 write_env_file() {
-  local env_content=""
+  local env_content="SF_ROOT_DEFAULT_EMAIL=${SF_ROOT_DEFAULT_EMAIL}"
 
   if ! is_known_access_mode "$SSL_MODE"; then
     msg_error "Cannot write environment file: invalid access method '${SSL_MODE:-<empty>}'"
@@ -600,18 +615,21 @@ write_env_file() {
 
   case "$SSL_MODE" in
     cloudflared)
-      env_content="TUNNEL_TOKEN=${TUNNEL_TOKEN}"
+      env_content="${env_content}
+TUNNEL_TOKEN=${TUNNEL_TOKEN}"
       ;;
     traefik)
-      env_content="DOMAIN=${DOMAIN}
+      env_content="${env_content}
+DOMAIN=${DOMAIN}
 EMAIL=${EMAIL}"
       ;;
     traefik-ip)
-      env_content="PUBLIC_IP=${PUBLIC_IP}
+      env_content="${env_content}
+PUBLIC_IP=${PUBLIC_IP}
 EMAIL=${EMAIL}"
       ;;
     http)
-      env_content=""
+      env_content="${env_content}"
       ;;
   esac
   echo "$env_content" > "$ENV_FILE"
@@ -705,6 +723,11 @@ confirm_access_selection() {
 confirm_configuration_summary() {
   local access_mode="$1"
   local details=""
+  local initial_root_email="$BUILTIN_ROOT_DEFAULT_EMAIL"
+
+  if [[ -n "$SF_ROOT_DEFAULT_EMAIL" ]]; then
+    initial_root_email="$SF_ROOT_DEFAULT_EMAIL"
+  fi
 
   if ! is_known_access_mode "$access_mode"; then
     tui_msgbox "Configuration Error" \
@@ -714,16 +737,16 @@ confirm_configuration_summary() {
 
   case "$access_mode" in
     cloudflared)
-      details="Tunnel token: configured"
+      details="Tunnel token: configured\nInitial root email: ${initial_root_email}"
       ;;
     traefik)
-      details="Domain: ${DOMAIN}\nLet's Encrypt email: ${EMAIL}\nPorts required: 80 and 443"
+      details="Domain: ${DOMAIN}\nLet's Encrypt email: ${EMAIL}\nInitial root email: ${initial_root_email}\nPorts required: 80 and 443"
       ;;
     traefik-ip)
-      details="Public IP: ${PUBLIC_IP}\nLet's Encrypt email: ${EMAIL}\nPorts required: 80 and 443"
+      details="Public IP: ${PUBLIC_IP}\nLet's Encrypt email: ${EMAIL}\nInitial root email: ${initial_root_email}\nPorts required: 80 and 443"
       ;;
     http)
-      details="Published port: ${SF_PORT}\nTLS: disabled"
+      details="Published port: ${SF_PORT}\nInitial root email: ${initial_root_email}\nTLS: disabled"
       ;;
   esac
 
@@ -937,6 +960,25 @@ confirm_http_warning() {
   return 0
 }
 
+prompt_root_default_email_override() {
+  SF_ROOT_DEFAULT_EMAIL=$(tui_inputbox "Initial Root Email" \
+    "Enter the email SoulFire should assign to the root user on first startup.\n\nLeave this blank to keep the built-in default (${BUILTIN_ROOT_DEFAULT_EMAIL}).\n\nThis only affects the initial root-user creation before first boot." \
+    "$SF_ROOT_DEFAULT_EMAIL") || {
+    msg_info "Setup cancelled"
+    exit 0
+  }
+
+  if [[ -z "$SF_ROOT_DEFAULT_EMAIL" ]]; then
+    return 0
+  fi
+
+  if ! is_valid_email "$SF_ROOT_DEFAULT_EMAIL"; then
+    msg_error "Email format looks invalid: $SF_ROOT_DEFAULT_EMAIL"
+    prompt_root_default_email_override
+    return
+  fi
+}
+
 # --- Container helpers ---
 
 is_installed() {
@@ -1074,7 +1116,7 @@ show_post_install_guidance() {
   local access_url="$1"
 
   tui_msgbox "Next Steps" \
-    "SoulFire is now running.\n\nAccess: ${access_url}\n\nRecommended next steps:\n  1. Open the management menu next\n  2. Attach to the SoulFire console\n  3. Run: generate-token api\n  4. Change the default root email if needed\n  5. Use logs/status if something is not reachable yet"
+    "SoulFire is now running.\n\nAccess: ${access_url}\n\nRecommended next steps:\n  1. Open the management menu next\n  2. Attach to the SoulFire console\n  3. Run: generate-token api\n  4. Change the root email later if needed\n  5. Use logs/status if something is not reachable yet"
 }
 
 do_fresh_install() {
@@ -1086,6 +1128,7 @@ do_fresh_install() {
   fi
 
   install_docker
+  prompt_root_default_email_override
   show_ssl_menu
 
   if ! is_known_access_mode "$SSL_MODE"; then
@@ -1193,6 +1236,11 @@ do_status() {
   load_existing_config
   echo "Access method: $(access_mode_name "$SSL_MODE")"
   echo "Expected access URL: $(selected_access_url "$SSL_MODE")"
+  if [[ -n "$SF_ROOT_DEFAULT_EMAIL" ]]; then
+    echo "Initial root email: $SF_ROOT_DEFAULT_EMAIL"
+  else
+    echo "Initial root email: $BUILTIN_ROOT_DEFAULT_EMAIL"
+  fi
   echo "Container state: $(app_container_state)"
   echo "Container health: $(app_container_health)"
   echo ""

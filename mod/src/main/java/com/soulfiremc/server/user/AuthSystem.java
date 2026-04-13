@@ -30,6 +30,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.util.TriState;
+import org.apache.commons.validator.routines.EmailValidator;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 import org.slf4j.event.Level;
@@ -50,6 +51,8 @@ import java.util.UUID;
 public final class AuthSystem {
   public static final UUID ROOT_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
   public static final String ROOT_DEFAULT_EMAIL = "root@soulfiremc.com";
+  public static final String ROOT_DEFAULT_EMAIL_PROPERTY = "sf.root.default.email";
+  public static final String ROOT_DEFAULT_EMAIL_ENV = "SF_ROOT_DEFAULT_EMAIL";
   private final LogServiceImpl.StateHolder logService;
   private final ServerSettingsSource settingsSource;
   private final SecretKey jwtSecretKey;
@@ -66,7 +69,34 @@ public final class AuthSystem {
     createRootUser();
   }
 
+  public static String resolveRootDefaultEmail() {
+    return resolveRootDefaultEmail(
+      System.getProperty(ROOT_DEFAULT_EMAIL_PROPERTY),
+      System.getenv(ROOT_DEFAULT_EMAIL_ENV)
+    );
+  }
+
+  public static String resolveRootDefaultEmail(String propertyValue, String envValue) {
+    var propertyOverride = sanitizeRootDefaultEmail(propertyValue);
+    if (propertyOverride != null) {
+      return propertyOverride;
+    }
+
+    var envOverride = sanitizeRootDefaultEmail(envValue);
+    if (envOverride != null) {
+      return envOverride;
+    }
+
+    return ROOT_DEFAULT_EMAIL;
+  }
+
+  public static boolean isDefaultRootEmail(String email) {
+    return ROOT_DEFAULT_EMAIL.equals(email) || resolveRootDefaultEmail().equals(email);
+  }
+
   private void createRootUser() {
+    var rootDefaultEmail = configuredRootDefaultEmail();
+
     dsl.transaction(cfg -> {
       var ctx = DSL.using(cfg);
       var currentRootUser = ctx.selectFrom(Tables.USERS).where(Tables.USERS.ID.eq(ROOT_USER_ID.toString())).fetchOne();
@@ -92,24 +122,63 @@ public final class AuthSystem {
           .set(Tables.USERS.ID, ROOT_USER_ID.toString())
           .set(Tables.USERS.USERNAME, "root")
           .set(Tables.USERS.ROLE, UserRole.ADMIN.name())
-          .set(Tables.USERS.EMAIL, ROOT_DEFAULT_EMAIL)
+          .set(Tables.USERS.EMAIL, rootDefaultEmail)
           .set(Tables.USERS.MIN_ISSUED_AT, now)
           .set(Tables.USERS.CREATED_AT, now)
           .set(Tables.USERS.UPDATED_AT, now)
           .set(Tables.USERS.VERSION, 0L)
           .execute();
-        log.warn("The root user email is defaulted to '{}'. Please change it using the command 'set-email <email>'", ROOT_DEFAULT_EMAIL);
+        log.warn("The root user email is defaulted to '{}'. Please change it using the command 'set-email <email>'", rootDefaultEmail);
       } else {
         ctx.update(Tables.USERS)
           .set(Tables.USERS.ROLE, UserRole.ADMIN.name())
           .set(Tables.USERS.UPDATED_AT, LocalDateTime.now(ZoneOffset.UTC))
           .where(Tables.USERS.ID.eq(ROOT_USER_ID.toString()))
           .execute();
-        if (ROOT_DEFAULT_EMAIL.equals(currentRootUser.getEmail())) {
-          log.warn("The root user email is currently set to '{}'. Please change it using the command 'set-email <email>'", ROOT_DEFAULT_EMAIL);
+        if (isDefaultRootEmail(currentRootUser.getEmail())) {
+          log.warn("The root user email is currently set to '{}'. Please change it using the command 'set-email <email>'", currentRootUser.getEmail());
         }
       }
     });
+  }
+
+  private String configuredRootDefaultEmail() {
+    var propertyValue = System.getProperty(ROOT_DEFAULT_EMAIL_PROPERTY);
+    var propertyOverride = sanitizeRootDefaultEmail(propertyValue);
+    if (propertyOverride != null) {
+      return propertyOverride;
+    }
+    warnAboutInvalidRootDefaultEmail(ROOT_DEFAULT_EMAIL_PROPERTY, propertyValue);
+
+    var envValue = System.getenv(ROOT_DEFAULT_EMAIL_ENV);
+    var envOverride = sanitizeRootDefaultEmail(envValue);
+    if (envOverride != null) {
+      return envOverride;
+    }
+    warnAboutInvalidRootDefaultEmail(ROOT_DEFAULT_EMAIL_ENV, envValue);
+
+    return ROOT_DEFAULT_EMAIL;
+  }
+
+  private static String sanitizeRootDefaultEmail(String configuredValue) {
+    if (configuredValue == null) {
+      return null;
+    }
+
+    var normalized = configuredValue.strip();
+    if (normalized.isEmpty() || !EmailValidator.getInstance().isValid(normalized)) {
+      return null;
+    }
+
+    return normalized;
+  }
+
+  private void warnAboutInvalidRootDefaultEmail(String sourceName, String configuredValue) {
+    if (configuredValue == null || configuredValue.isBlank()) {
+      return;
+    }
+
+    log.warn("Ignoring invalid root default email override from {}: '{}'", sourceName, configuredValue);
   }
 
   public Optional<SoulFireUser> authenticateByHeader(String authorization, String audience) {
