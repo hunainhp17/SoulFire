@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 public final class AuthSystemRootDefaultEmailTest {
   private static final String ROOT_DEFAULT_EMAIL_PROPERTY = "sf.root.default.email";
@@ -58,6 +59,19 @@ public final class AuthSystemRootDefaultEmailTest {
       AuthSystem.ROOT_DEFAULT_EMAIL,
       AuthSystem.resolveRootDefaultEmail("not-an-email", "still-not-an-email")
     );
+  }
+
+  @Test
+  void explicitOverrideIsNotTreatedAsTheBuiltInDefault() {
+    var previousRootDefaultEmail = System.getProperty(ROOT_DEFAULT_EMAIL_PROPERTY);
+
+    try {
+      System.setProperty(ROOT_DEFAULT_EMAIL_PROPERTY, "bootstrap-admin@example.com");
+
+      assertFalse(AuthSystem.isDefaultRootEmail("bootstrap-admin@example.com"));
+    } finally {
+      restoreProperty(ROOT_DEFAULT_EMAIL_PROPERTY, previousRootDefaultEmail);
+    }
   }
 
   @Test

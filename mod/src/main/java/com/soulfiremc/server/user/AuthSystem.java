@@ -91,7 +91,7 @@ public final class AuthSystem {
   }
 
   public static boolean isDefaultRootEmail(String email) {
-    return ROOT_DEFAULT_EMAIL.equals(email) || resolveRootDefaultEmail().equals(email);
+    return ROOT_DEFAULT_EMAIL.equals(email);
   }
 
   private void createRootUser() {
@@ -128,7 +128,9 @@ public final class AuthSystem {
           .set(Tables.USERS.UPDATED_AT, now)
           .set(Tables.USERS.VERSION, 0L)
           .execute();
-        log.warn("The root user email is defaulted to '{}'. Please change it using the command 'set-email <email>'", rootDefaultEmail);
+        if (isDefaultRootEmail(rootDefaultEmail)) {
+          log.warn("The root user email is defaulted to '{}'. Please change it using the command 'set-email <email>'", rootDefaultEmail);
+        }
       } else {
         ctx.update(Tables.USERS)
           .set(Tables.USERS.ROLE, UserRole.ADMIN.name())
