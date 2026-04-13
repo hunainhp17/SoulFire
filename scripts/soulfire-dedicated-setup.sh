@@ -442,7 +442,7 @@ generate_cloudflared_compose() {
   cat <<'COMPOSE'
 services:
   app:
-    image: ghcr.io/alexprogrammerde/soulfire
+    image: ghcr.io/soulfiremc-com/soulfire
     restart: always
     stdin_open: true
     tty: true
@@ -469,7 +469,7 @@ generate_traefik_domain_compose() {
   cat <<'COMPOSE'
 services:
   app:
-    image: ghcr.io/alexprogrammerde/soulfire
+    image: ghcr.io/soulfiremc-com/soulfire
     restart: always
     stdin_open: true
     tty: true
@@ -516,7 +516,7 @@ generate_traefik_ip_compose() {
   cat <<'COMPOSE'
 services:
   app:
-    image: ghcr.io/alexprogrammerde/soulfire
+    image: ghcr.io/soulfiremc-com/soulfire
     restart: always
     stdin_open: true
     tty: true
@@ -569,7 +569,7 @@ generate_http_compose() {
   cat <<'COMPOSE'
 services:
   app:
-    image: ghcr.io/alexprogrammerde/soulfire
+    image: ghcr.io/soulfiremc-com/soulfire
     restart: always
     stdin_open: true
     tty: true
@@ -1107,7 +1107,7 @@ show_startup_troubleshooting() {
       details="Likely causes:\n  - SoulFire is still starting\n  - port ${SF_PORT} is blocked or already in use\n  - another service is interfering with the container"
       ;;
   esac
-  
+
   tui_msgbox "Startup Taking Longer Than Expected" \
     "SoulFire is taking longer than expected to become ready.\n\n${details}\n\nUseful commands:\n  docker compose -f $COMPOSE_FILE ps\n  docker compose -f $COMPOSE_FILE logs app\n  docker compose -f $COMPOSE_FILE logs --tail 100"
 }

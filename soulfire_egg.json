@@ -12,7 +12,7 @@
   "description": "Creates a container that runs a SoulFire dedicated server.",
   "features": null,
   "docker_images": {
-    "alexprogrammerde\/soulfire": "alexprogrammerde\/soulfire"
+    "ghcr.io\/soulfiremc-com\/soulfire": "ghcr.io\/soulfiremc-com\/soulfire"
   },
   "file_denylist": [],
   "startup": "/bin/sh /soulfire/start.sh",
