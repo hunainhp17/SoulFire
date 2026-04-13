@@ -4,7 +4,7 @@ set +e
 INSTALL_DIR="/opt/soulfire"
 COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
 ENV_FILE="$INSTALL_DIR/.env"
-SF_IMAGE="ghcr.io/alexprogrammerde/soulfire"
+SF_IMAGE="ghcr.io/soulfiremc-com/soulfire"
 SF_PORT=38765
 
 TUI_CMD=""
