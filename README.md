@@ -21,7 +21,7 @@ This repository only contains the CLI and server implementation. The official GU
 
 EnderDash allows you to manage your existing Minecraft servers using an advanced dashboard by installing a single plugin, batteries included. Run commands (with tab completion), read logs, manage files, invite your whole team, manage players, Ocelot (AI Assistant), works with your existing Infrastructure/Panels and much more.
 
-Check it out: [https://enderdash.com](https://enderdash.com/?utm_source=github&utm_medium=readme&utm_campaign=ddos-protection-guide)
+Check it out: [https://enderdash.com](https://enderdash.com/?utm_source=github&utm_medium=readme&utm_campaign=soulfire)
 
 ---
 
