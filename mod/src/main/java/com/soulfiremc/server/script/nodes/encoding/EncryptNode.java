@@ -21,7 +21,7 @@ import com.soulfiremc.server.script.*;
 import reactor.core.publisher.Mono;
 
 import javax.crypto.Cipher;
-import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -31,6 +31,11 @@ import java.util.Map;
 
 /// Encoding node that encrypts a string using AES encryption.
 public final class EncryptNode extends AbstractScriptNode {
+  private static final byte[] FORMAT_MARKER = "SFENC1".getBytes(StandardCharsets.UTF_8);
+  private static final String ENCRYPTION_ALGORITHM = "AES/GCM/NoPadding";
+  private static final int GCM_IV_LENGTH_BYTES = 12;
+  private static final int GCM_TAG_LENGTH_BITS = 128;
+
   public static final NodeMetadata METADATA = NodeMetadata.builder()
     .type("encoding.encrypt")
     .displayName("Encrypt")
@@ -69,19 +74,20 @@ public final class EncryptNode extends AbstractScriptNode {
       var secretKey = new SecretKeySpec(keyHash, "AES");
 
       // Generate random IV
-      var iv = new byte[16];
+      var iv = new byte[GCM_IV_LENGTH_BYTES];
       new SecureRandom().nextBytes(iv);
-      var ivSpec = new IvParameterSpec(iv);
+      var gcmSpec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv);
 
       // Encrypt
-      var cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-      cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
+      var cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM);
+      cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);
       var encrypted = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
 
       // Prepend IV to ciphertext and encode
-      var combined = new byte[iv.length + encrypted.length];
-      System.arraycopy(iv, 0, combined, 0, iv.length);
-      System.arraycopy(encrypted, 0, combined, iv.length, encrypted.length);
+      var combined = new byte[FORMAT_MARKER.length + iv.length + encrypted.length];
+      System.arraycopy(FORMAT_MARKER, 0, combined, 0, FORMAT_MARKER.length);
+      System.arraycopy(iv, 0, combined, FORMAT_MARKER.length, iv.length);
+      System.arraycopy(encrypted, 0, combined, FORMAT_MARKER.length + iv.length, encrypted.length);
 
       return completedMono(results(
         "ciphertext", Base64.getEncoder().encodeToString(combined),
