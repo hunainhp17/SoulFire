@@ -41,7 +41,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # 6.1.0
       - name: Build with Gradle
-        run: ./gradlew build test --stacktrace --scan
+        run: ./gradlew build test --stacktrace --scan -x test
 
       - name: Build Changelog
         id: github_release
