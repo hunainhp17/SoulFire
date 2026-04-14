@@ -21,7 +21,7 @@ import com.soulfiremc.server.script.*;
 import reactor.core.publisher.Mono;
 
 import javax.crypto.Cipher;
-import·javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
