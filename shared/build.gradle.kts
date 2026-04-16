@@ -12,8 +12,8 @@ dependencies {
   api("org.ow2.asm:asm-commons:9.9.1")
   api("org.ow2.asm:asm-tree:9.9.1")
   api("org.ow2.asm:asm-util:9.9.1")
-  api("net.fabricmc:sponge-mixin:0.17.1+mixin.0.8.7")
-  api("net.fabricmc:fabric-loader:0.19.1")
+  api("net.fabricmc:sponge-mixin:0.17.2+mixin.0.8.7")
+  api("net.fabricmc:fabric-loader:0.19.2")
   api("net.fabricmc:mapping-io:0.8.0")
 
   api("at.yawk.lz4:lz4-java:1.11.0")
@@ -53,7 +53,7 @@ dependencies {
   api("org.lwjgl:lwjgl:3.4.1")
   api("org.slf4j:slf4j-api:2.0.17")
 
-  api("io.github.llamalad7:mixinextras-fabric:0.5.3")
+  api("io.github.llamalad7:mixinextras-fabric:0.5.4")
   api("org.checkerframework:checker-qual:4.0.0")
 
   api(projects.buildData)

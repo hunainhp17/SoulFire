@@ -20,7 +20,7 @@ dependencies {
   compileOnly(projects.shared)
 
   minecraft("com.mojang:minecraft:26.1.2")
-  implementation("net.fabricmc:fabric-loader:0.19.1")
+  implementation("net.fabricmc:fabric-loader:0.19.2")
 
   val viaFabricPlusNotation = "com.viaversion:viafabricplus:4.5.2"
   implementation(viaFabricPlusNotation) {
@@ -30,7 +30,7 @@ dependencies {
     isTransitive = false
   }
 
-  annotationProcessor("io.github.llamalad7:mixinextras-fabric:0.5.3")
+  annotationProcessor("io.github.llamalad7:mixinextras-fabric:0.5.4")
 
   annotationProcessor(libs.immutables.gson)
   compileOnly(libs.immutables.value)
