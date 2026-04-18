@@ -1,0 +1,19 @@
+name: SoulFire Stress Test
+on: workflow_dispatch
+
+jobs:
+  attack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Build and Run
+        run: |
+          ./gradlew :dedicated-launcher:run --args="--host lapatasmp.fun --port 25565 --amount 100"
