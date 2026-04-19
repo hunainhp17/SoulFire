@@ -1,47 +1,21 @@
-name: Build
-on: [ push, pull_request ]
-
-permissions:
-  contents: read
+name: PakSMP Stress Test
+on: workflow_dispatch
 
 jobs:
-  build:
-    # Only run on PRs if the source branch is on someone else's repo
-    if: "${{ github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name }}"
-
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-
+  launch-bots:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+      - name: Get SoulFire Files
+        uses: actions/checkout@v4
+
+      - name: Prepare Java
+        uses: actions/setup-java@v4
         with:
-          persist-credentials: false
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # 6.1.0
-      - name: Set up JDK 25
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # 5.2.0
-        with:
-          java-version: '25'
+          java-version: '21'
           distribution: 'temurin'
-          check-latest: true
-      - name: Execute Gradle Build
-        run: ./gradlew build test printSFCLIFlags --stacktrace | grep -q -- "--bot-amount" || exit 1
-      - name: Get version
-        id: get-version
+
+      - name: Start Attack
         run: |
-          projectVersion=$(grep '^maven_version=' gradle.properties | cut -d'=' -f2)
-          echo "version=$projectVersion" >> $GITHUB_OUTPUT
-      - name: Upload Client Build Artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # 7.0.1
-        with:
-          name: SoulFireCLI
-          if-no-files-found: error
-          path: |
-            client-launcher/build/libs/SoulFireCLI-${{ steps.get-version.outputs.version }}.jar
-      - name: Upload Dedicated Build Artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # 7.0.1
-        with:
-          name: SoulFireDedicated
-          if-no-files-found: error
-          path: |
-            dedicated-launcher/build/libs/SoulFireDedicated-${{ steps.get-version.outputs.version }}.jar
+          chmod +x gradlew
+          # The IP is set to lapatasmp.fun below
+          ./gradlew :dedicated-launcher:run --args="--host lapatasmp.fun --port 25565 --amount 50 --script 'wait 3000; send /register 1234555 1234555'"
