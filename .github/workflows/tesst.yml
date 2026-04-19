@@ -1,0 +1,21 @@
+name: SoulFire Stress Test
+on: workflow_dispatch
+
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Files
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Run Bots
+        run: |
+          chmod +x gradlew
+          # This runs the built-in SoulFire engine
+          ./gradlew :dedicated-launcher:run --args="--host lapatasmp.fun --port 25565 --amount 50 --script 'wait 3000; send /register 1234555 1234555; wait 5000; send Hello PakSMP!; repeat 5 5000: send Testing defenses...'"
